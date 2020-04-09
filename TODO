@@ -1,3 +1,4 @@
 * update verifier version
 * shuffle outputs
-* 
+* utxo data encryption for recipient
+* poseidon
