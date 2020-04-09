@@ -38,6 +38,7 @@ template Transaction(levels, zeroLeaf) {
     // data for 2 transaction outputs
     signal private input outAmount[2];
     signal private input outBlinding[2];
+    signal private input outPubkey[2];
     signal private input outPathIndices;
     signal private input outPathElements[levels - 1];
 
@@ -88,7 +89,7 @@ template Transaction(levels, zeroLeaf) {
         outUtxoHasher[tx] = TransactionHasher();
         outUtxoHasher[tx].amount <== outAmount[tx];
         outUtxoHasher[tx].blinding <== outBlinding[tx];
-        outUtxoHasher[tx].publicKey <== keypair.publicKey;
+        outUtxoHasher[tx].publicKey <== outPubkey[tx];
         outUtxoHasher[tx].commitment === outputCommitment[tx];
 
         // Check that amount fits into 248 bits to prevent overflow
@@ -120,4 +121,4 @@ template Transaction(levels, zeroLeaf) {
     }
 }
 
-component main = Transaction(5, 3193090221241211970002919215846211184824251841300455796635909287157453409439);
+component main = Transaction(5, 16923532097304556005972200564242292693309333953544141029519619077135960040221);

@@ -29,9 +29,10 @@ template DualMux() {
 // pathIndices input is an array of 0/1 selectors telling whether given pathElement is on the left or right side of merkle path
 template MerkleTree(levels) {
     signal input leaf;
-    signal input root;
     signal input pathElements[levels];
     signal input pathIndices;
+
+    signal output root;
 
     component selectors[levels];
     component hashers[levels];
@@ -50,5 +51,5 @@ template MerkleTree(levels) {
         hashers[i].right <== selectors[i].out[1];
     }
 
-    root === hashers[levels - 1].hash;
+    root <== hashers[levels - 1].hash;
 }

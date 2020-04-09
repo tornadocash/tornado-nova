@@ -7,8 +7,11 @@ template Keypair() {
     signal input privateKey;
     signal output publicKey;
 
-    publicKey <== privateKey;
-    // todo
+    component hasher = MiMCSponge(1, 1);
+    hasher.ins[0] <== privateKey;
+    hasher.k <== 0;
+
+    publicKey <== hasher.outs[0];
 }
 
 template TransactionHasher() {

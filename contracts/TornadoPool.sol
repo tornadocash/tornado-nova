@@ -34,8 +34,9 @@ contract TornadoPool is ReentrancyGuard {
     @dev The constructor
     @param _verifier the address of SNARK verifier for this contract
   */
-  constructor(IVerifier _verifier) public {
+  constructor(IVerifier _verifier, bytes32 _currentRoot) public {
     verifier = _verifier;
+    currentRoot = _currentRoot;
   }
 
   function transaction(
@@ -83,8 +84,8 @@ contract TornadoPool is ReentrancyGuard {
       transfer(_relayer, _fee);
     }
 
-    emit NewCommitment(_outputCommitments[0], currentDepositIndex++);
-    emit NewCommitment(_outputCommitments[1], currentDepositIndex++);
+    emit NewCommitment(_outputCommitments[0], currentCommitmentIndex++);
+    emit NewCommitment(_outputCommitments[1], currentCommitmentIndex++);
     emit NewNullifier(_inputNullifiers[0]);
     emit NewNullifier(_inputNullifiers[1]);
     // emit Transaction();
