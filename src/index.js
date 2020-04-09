@@ -24,7 +24,7 @@ const toHex = (number, length = 32) => '0x' + (number instanceof Buffer ? number
 
 function merklePathIndicesToBigint(indexArray) {
   let result = 0
-  for(let item of indexArray) {
+  for(let item of indexArray.slice().reverse()) {
     result = (result << 1) + item
   }
   return result
@@ -86,8 +86,8 @@ async function buildMerkleTree() {
     console.log('Getting contract state...')
     const events = await contract.getPastEvents('NewCommitment', { fromBlock: 0, toBlock: 'latest' })
     const leaves = events
-      .sort((a, b) => a.returnValues.index - b.returnValues.index) // todo sort by event date
-      .map(e => e.returnValues.commitment)
+        .sort((a, b) => a.returnValues.index - b.returnValues.index) // todo sort by event date
+        .map(e => e.returnValues.commitment)
     return new MerkleTree(MERKLE_TREE_HEIGHT, leaves)
 }
 
@@ -98,16 +98,7 @@ async function insertOutput(tree, output) {
     output.merklePathElements = path_elements
 }
 
-async function main() {
-    web3 = new Web3(new Web3.providers.HttpProvider(RPC_URL, { timeout: 5 * 60 * 1000 }), null, { transactionConfirmationBlocks: 1 })
-    circuit = require('../build/circuits/transaction.json')
-    proving_key = fs.readFileSync('../build/circuits/transaction_proving_key.bin').buffer
-    groth16 = await buildGroth16()
-    netId = await web3.eth.net.getId()
-    const contractData = require('../build/contracts/TornadoPool.json')
-    contract = new web3.eth.Contract(contractData.abi, contractData.networks[netId].address)
-    web3.eth.defaultAccount = (await web3.eth.getAccounts())[0]
-
+async function deposit() {
     const amount = 1e6;
     const tree = await buildMerkleTree()
     const oldRoot = await tree.root()
@@ -164,6 +155,19 @@ async function main() {
     console.log('Sending deposit transaction...')
     const receipt = await contract.methods.transaction(proof, ...args).send({ value: amount, from: web3.eth.defaultAccount, gas: 1e6 })
     console.log(`Receipt ${receipt.transactionHash}`)
+}
+
+async function main() {
+    web3 = new Web3(new Web3.providers.HttpProvider(RPC_URL, { timeout: 5 * 60 * 1000 }), null, { transactionConfirmationBlocks: 1 })
+    circuit = require('../build/circuits/transaction.json')
+    proving_key = fs.readFileSync('../build/circuits/transaction_proving_key.bin').buffer
+    groth16 = await buildGroth16()
+    netId = await web3.eth.net.getId()
+    const contractData = require('../build/contracts/TornadoPool.json')
+    contract = new web3.eth.Contract(contractData.abi, contractData.networks[netId].address)
+    web3.eth.defaultAccount = (await web3.eth.getAccounts())[0]
+
+    await deposit()
 
 }
 
