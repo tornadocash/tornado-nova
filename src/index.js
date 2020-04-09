@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const MerkleTree = require('../lib/merkleTree')
 const fs = require('fs')
 const { bigInt, stringifyBigInts } = require('snarkjs')
@@ -25,7 +26,7 @@ const toHex = (number, length = 32) => '0x' + (number instanceof Buffer ? number
 function merklePathIndicesToBigint(indexArray) {
   let result = 0
   for(let item of indexArray.slice().reverse()) {
-      result = (result << 1) + item
+    result = (result << 1) + item
   }
   return result
 }
@@ -59,7 +60,7 @@ function createOutput(amount, pubkey) {
   return createUtxo(amount, rbigint(), pubkey)
 }
 
-function createInput(amount, blinding, pubkey, privkey, merklePathIndices, merklePathElements) {
+function createInput({ amount, blinding, pubkey, privkey, merklePathIndices, merklePathElements }) {
   return createUtxo(amount, blinding, pubkey, privkey, merklePathIndices, merklePathElements)
 }
 
@@ -73,11 +74,13 @@ function createUtxo(amount, blinding, pubkey, privkey, merklePathIndices, merkle
   return utxo
 }
 
-function createDeposit(amount, pubkey) {
-  const keypair = randomKeypair()
+function createDeposit(amount, keypair) {
+  const fakeKeypair = randomKeypair()
+  const output = createOutput(amount, keypair.pubkey)
+  output.privkey = keypair.privkey
   const tx = {
-    inputs: [createZeroUtxo(keypair), createZeroUtxo(keypair)],
-    outputs: [createOutput(amount, pubkey), createZeroUtxo(keypair)], // todo shuffle
+    inputs: [createZeroUtxo(fakeKeypair), createZeroUtxo(fakeKeypair)],
+    outputs: [output, createZeroUtxo(fakeKeypair)], // todo shuffle
   }
   return tx
 }
@@ -87,7 +90,8 @@ async function buildMerkleTree() {
   const events = await contract.getPastEvents('NewCommitment', { fromBlock: 0, toBlock: 'latest' })
   const leaves = events
     .sort((a, b) => a.returnValues.index - b.returnValues.index) // todo sort by event date
-    .map(e => e.returnValues.commitment)
+    .map(e => toHex(e.returnValues.commitment))
+  console.log('leaves', leaves)
   return new MerkleTree(MERKLE_TREE_HEIGHT, leaves)
 }
 
@@ -103,7 +107,7 @@ async function deposit() {
   const tree = await buildMerkleTree()
   const oldRoot = await tree.root()
   const keypair = randomKeypair()
-  const tx = createDeposit(amount, keypair.pubkey)
+  const tx = createDeposit(amount, keypair)
   await insertOutput(tree, tx.outputs[0])
   await insertOutput(tree, tx.outputs[1])
   console.log('Note', tx.outputs[0])
@@ -135,7 +139,8 @@ async function deposit() {
     outPathElements: tx.outputs[0].merklePathElements.slice(1)
   }
 
-  console.log('input', JSON.stringify(stringifyBigInts(input)))
+  // console.log('input', JSON.stringify(stringifyBigInts(input)))
+  console.log('DEPOSIT input', input)
 
   console.log('Generating SNARK proof...')
   const proofData = await websnarkUtils.genWitnessAndProve(groth16, input, circuit, proving_key)
@@ -155,10 +160,77 @@ async function deposit() {
   console.log('Sending deposit transaction...')
   const receipt = await contract.methods.transaction(proof, ...args).send({ value: amount, from: web3.eth.defaultAccount, gas: 1e6 })
   console.log(`Receipt ${receipt.transactionHash}`)
+  return tx.outputs[0]
 }
 
-async function transact() {
+async function transact(txOutput) {
+  console.log('txOutput', txOutput)
+  const tree = await buildMerkleTree()
+  const oldRoot = await tree.root()
+  const keypair = randomKeypair()
 
+  const index = await tree.getIndexByElement(toHex(txOutput.commitment))
+  console.log('index', index)
+  const { path_elements, path_index } = await tree.path(index)
+  console.log('path_index', path_index)
+  txOutput.merklePathElements = path_elements
+  const input1 = createInput(txOutput)
+  const tx = {
+    inputs: [input1, createZeroUtxo(fromPrivkey(txOutput.privkey))],
+    outputs: [createOutput(txOutput.amount / 4, keypair.pubkey), createOutput(txOutput.amount * 3 / 4, txOutput.pubkey)], // todo shuffle
+  }
+  await insertOutput(tree, tx.outputs[0])
+  await insertOutput(tree, tx.outputs[1])
+  console.log('Note', tx.outputs[0])
+
+  let input = {
+    root: oldRoot,
+    newRoot: await tree.root(),
+    inputNullifier: [tx.inputs[0].nullifier, tx.inputs[1].nullifier],
+    outputCommitment: [tx.outputs[0].commitment, tx.outputs[1].commitment],
+    extAmount: 0,
+    fee: 0,
+    recipient: 0,
+    relayer: 0,
+
+    // private inputs
+    privateKey: tx.inputs[0].privkey,
+
+    // data for 2 transaction inputs
+    inAmount: [tx.inputs[0].amount, tx.inputs[1].amount],
+    inBlinding: [tx.inputs[0].blinding, tx.inputs[1].blinding],
+    inPathIndices: [merklePathIndicesToBigint(tx.inputs[0].merklePathIndices), merklePathIndicesToBigint(tx.inputs[1].merklePathIndices)],
+    inPathElements: [tx.inputs[0].merklePathElements, tx.inputs[1].merklePathElements],
+
+    // data for 2 transaction outputs
+    outAmount: [tx.outputs[0].amount, tx.outputs[1].amount],
+    outBlinding: [tx.outputs[0].blinding, tx.outputs[1].blinding],
+    outPubkey: [tx.outputs[0].pubkey, tx.outputs[1].pubkey],
+    outPathIndices: merklePathIndicesToBigint(tx.outputs[0].merklePathIndices.slice(1)),
+    outPathElements: tx.outputs[0].merklePathElements.slice(1)
+  }
+
+  console.log('TRANSFER input', input)
+
+  console.log('Generating SNARK proof...')
+  const proofData = await websnarkUtils.genWitnessAndProve(groth16, input, circuit, proving_key)
+  const { proof } = websnarkUtils.toSolidityInput(proofData)
+
+  const args = [
+    toHex(input.root),
+    toHex(input.newRoot),
+    [toHex(tx.inputs[0].nullifier), toHex(tx.inputs[1].nullifier)],
+    [toHex(tx.outputs[0].commitment), toHex(tx.outputs[1].commitment)],
+    toHex(0),
+    toHex(input.fee),
+    toHex(input.recipient, 20),
+    toHex(input.relayer, 20),
+  ]
+
+  console.log('Sending transfer transaction...')
+  const receipt = await contract.methods.transaction(proof, ...args).send({ from: web3.eth.defaultAccount, gas: 1e6 })
+  console.log(`Receipt ${receipt.transactionHash}`)
+  return tx.outputs[0]
 }
 
 async function main() {
@@ -171,7 +243,8 @@ async function main() {
   contract = new web3.eth.Contract(contractData.abi, contractData.networks[netId].address)
   web3.eth.defaultAccount = (await web3.eth.getAccounts())[0]
 
-  await deposit()
+  const txOutput = await deposit()
+  const txOutput1 = await transact(txOutput)
 
 }
 
