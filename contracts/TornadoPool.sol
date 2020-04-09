@@ -64,8 +64,8 @@ contract TornadoPool is ReentrancyGuard {
       uint256(_outputCommitments[1]),
       _extAmount,
       _fee,
-      uint256(_relayer),
-      uint256(_recipient)
+      uint256(_recipient),
+      uint256(_relayer)
     ]), "Invalid transaction proof");
 
     currentRoot = _newRoot;

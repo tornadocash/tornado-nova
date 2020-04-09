@@ -13,6 +13,8 @@
     "build:circuit:bin": "node node_modules/websnark/tools/buildpkey.js -i build/circuits/transaction_proving_key.json -o build/circuits/transaction_proving_key.bin",
     "build:circuit:contract": "npx snarkjs generateverifier -v build/circuits/Verifier.sol --vk build/circuits/transaction_verification_key.json",
     "build:circuit": "mkdir -p build/circuits && npm run build:circuit:compile && npm run build:circuit:setup && npm run build:circuit:bin && npm run build:circuit:contract",
+    "build:contract": "npx truffle compile",
+    "build": "npm run build:circuit && npm run build:contract",
     "migrate:dev": "npx truffle migrate --network development --reset"
   },
   "keywords": [],
