@@ -48,7 +48,7 @@ template Transaction(levels, zeroLeaf) {
     component tree[2];
     component inAmountCheck[2];
     component outAmountCheck[2];
-    
+
     component keypair = Keypair();
     keypair.privateKey <== privateKey;
 
@@ -71,7 +71,7 @@ template Transaction(levels, zeroLeaf) {
         for (var i = 0; i < levels; i++) {
             tree[tx].pathElements[i] <== inPathElements[tx][i];
         }
-        
+
         // check merkle proof only if amount is non-zero
         checkRoot[tx] = ForceEqualIfEnabled();
         checkRoot[tx].in[0] <== root;
@@ -120,4 +120,4 @@ template Transaction(levels, zeroLeaf) {
     }
 }
 
-component main = Transaction(20, 3193090221241211970002919215846211184824251841300455796635909287157453409439);
+component main = Transaction(5, 3193090221241211970002919215846211184824251841300455796635909287157453409439);

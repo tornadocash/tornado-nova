@@ -18,7 +18,7 @@ template TransactionHasher() {
 
     signal output commitment;
 
-    component hasher = MiMCSponge(3, 220, 1);
+    component hasher = MiMCSponge(3, 1);
     hasher.ins[0] <== amount;
     hasher.ins[1] <== blinding;
     hasher.ins[2] <== publicKey;
@@ -33,8 +33,8 @@ template NullifierHasher() {
     signal input commitment;
 
     signal output nullifier;
-    
-    component hasher = MiMCSponge(3, 220, 1);
+
+    component hasher = MiMCSponge(3, 1);
     hasher.ins[0] <== commitment;
     hasher.ins[1] <== merklePath;
     hasher.ins[2] <== privateKey;
