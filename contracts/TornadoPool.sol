@@ -23,10 +23,11 @@ contract TornadoPool is ReentrancyGuard {
 
   mapping(bytes32 => bool) public nullifierHashes;
   bytes32 public currentRoot;
+  uint public currentCommitmentIndex;
   IVerifier public verifier;
 
   // todo: event Transaction();
-  event NewCommitment(bytes32 commitment);
+  event NewCommitment(bytes32 commitment, uint index);
   event NewNullifier(bytes32 nullifier);
 
   /**
@@ -82,8 +83,8 @@ contract TornadoPool is ReentrancyGuard {
       transfer(_relayer, _fee);
     }
 
-    emit NewCommitment(_outputCommitments[0]);
-    emit NewCommitment(_outputCommitments[1]);
+    emit NewCommitment(_outputCommitments[0], currentDepositIndex++);
+    emit NewCommitment(_outputCommitments[1], currentDepositIndex++);
     emit NewNullifier(_inputNullifiers[0]);
     emit NewNullifier(_inputNullifiers[1]);
     // emit Transaction();
