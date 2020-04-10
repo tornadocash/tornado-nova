@@ -1,36 +1,14 @@
 
 import BigNumber from "bignumber.js"
 
-class UTXO {
-  amount: BigNumber;
-  blinding: BigNumber;
-  pubkey: BigNumber;
-  privkey: BigNumber;
-  commitment: BigNumber;
-  treeIndex: Boolean[];
-  nullifier: BigNumber;
-
-  constructor(
-    amount,
-    blinding,
-    pubkey,
-    privkey,
-    commitment,
-    treeIndex,
-    nullifier,
-  ) {
-
-  }
-}
-
-class Transaction {
-  inputs: UTXO[];
-  outputs: UTXO[];
-
-}
+import { Utxo } from './Utxo'
+const { bigInt } = require('snarkjs')
+const crypto = require('crypto')
+const rbigint = (nbytes = 31) => bigInt.leBuff2int(crypto.randomBytes(nbytes))
 
 async function main() {
-  const deposit = new UTXO();
+  const zeroUtxo = new Utxo(bigInt(0), rbigint(), rbigint())
+  console.log('zeroUtxo publicKey', zeroUtxo.publicKey())
 }
 
 main()
