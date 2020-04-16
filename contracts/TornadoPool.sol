@@ -29,6 +29,7 @@ contract TornadoPool is ReentrancyGuard {
   // todo: event Transaction();
   event NewCommitment(bytes32 commitment, uint index);
   event NewNullifier(bytes32 nullifier);
+  event Withdraw(bytes32 indexed nullifier); // todo emit it on withdraw so we can easily find the withdraw tx for user on UI
 
   /**
     @dev The constructor
