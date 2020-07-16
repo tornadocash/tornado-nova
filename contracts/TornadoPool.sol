@@ -85,6 +85,7 @@ contract TornadoPool is ReentrancyGuard {
       transfer(_relayer, _fee);
     }
 
+    // todo enforce currentCommitmentIndex value in snark
     emit NewCommitment(_outputCommitments[0], currentCommitmentIndex++);
     emit NewCommitment(_outputCommitments[1], currentCommitmentIndex++);
     emit NewNullifier(_inputNullifiers[0]);
