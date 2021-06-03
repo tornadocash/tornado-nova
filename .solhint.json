@@ -1,0 +1,13 @@
+{
+  "extends": "solhint:recommended",
+  "rules": {
+    "prettier/prettier": [
+      "error",
+      {
+        "printWidth": 110
+      }
+    ],
+    "quotes": ["error", "double"]
+  },
+  "plugins": ["prettier"]
+}

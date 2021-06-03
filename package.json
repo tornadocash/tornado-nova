@@ -2,35 +2,34 @@
   "name": "tornado-pool",
   "version": "1.0.0",
   "description": "",
-  "main": "truffle-config.js",
+  "main": "src/index.js",
   "directories": {
     "test": "test"
   },
   "scripts": {
-    "cli": "npx ts-node src/index.ts",
     "build:circuit:compile": "npx circom circuits/transaction.circom -o build/circuits/transaction.json && npx snarkjs info -c build/circuits/transaction.json",
     "build:circuit:setup": "npx snarkjs setup --protocol groth -c build/circuits/transaction.json --pk build/circuits/transaction_proving_key.json --vk build/circuits/transaction_verification_key.json",
     "build:circuit:bin": "node node_modules/websnark/tools/buildpkey.js -i build/circuits/transaction_proving_key.json -o build/circuits/transaction_proving_key.bin",
     "build:circuit:contract": "npx snarkjs generateverifier -v build/circuits/Verifier.sol --vk build/circuits/transaction_verification_key.json",
     "build:circuit": "mkdir -p build/circuits && npm run build:circuit:compile && npm run build:circuit:setup && npm run build:circuit:bin && npm run build:circuit:contract",
-    "build:contract": "npx truffle compile",
+    "build:contract": "npx hardhat compile",
     "build": "npm run build:circuit && npm run build:contract",
-    "migrate:dev": "npx truffle migrate --network development --reset"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin/contracts": "^2.5.0",
     "bignumber.js": "^9.0.0",
     "circom": "0.0.35",
     "circomlib": "git+https://github.com/tornadocash/circomlib.git#c372f14d324d57339c88451834bf2824e73bbdbc",
+    "dotenv": "^10.0.0",
+    "ethereum-waffle": "^3.2.0",
+    "ethers": "^5.0.0",
+    "hardhat": "^2.3.0",
     "snarkjs": "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5",
-    "typescript": "^3.8.3",
     "websnark": "git+https://github.com/tornadocash/websnark.git#2041cfa5fa0b71cd5cca9022a4eeea4afe28c9f7"
-  },
-  "devDependencies": {
-    "ganache-cli": "^6.9.1",
-    "ts-node": "^8.8.2"
   }
 }
