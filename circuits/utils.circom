@@ -1,17 +1,15 @@
 include "../node_modules/circomlib/circuits/pointbits.circom";
 include "../node_modules/circomlib/circuits/compconstant.circom";
-include "../node_modules/circomlib/circuits/mimcsponge.circom";
+include "../node_modules/circomlib/circuits/poseidon.circom";
 
 
 template Keypair() {
     signal input privateKey;
     signal output publicKey;
 
-    component hasher = MiMCSponge(1, 1);
-    hasher.ins[0] <== privateKey;
-    hasher.k <== 0;
-
-    publicKey <== hasher.outs[0];
+    component hasher = Poseidon(1);
+    hasher.inputs[0] <== privateKey;
+    publicKey <== hasher.out;
 }
 
 template TransactionHasher() {
@@ -21,13 +19,11 @@ template TransactionHasher() {
 
     signal output commitment;
 
-    component hasher = MiMCSponge(3, 1);
-    hasher.ins[0] <== amount;
-    hasher.ins[1] <== blinding;
-    hasher.ins[2] <== publicKey;
-    hasher.k <== 0;
-
-    commitment <== hasher.outs[0];
+    component hasher = Poseidon(3);
+    hasher.inputs[0] <== amount;
+    hasher.inputs[1] <== blinding;
+    hasher.inputs[2] <== publicKey;
+    commitment <== hasher.out;
 }
 
 template NullifierHasher() {
@@ -37,11 +33,9 @@ template NullifierHasher() {
 
     signal output nullifier;
 
-    component hasher = MiMCSponge(3, 1);
-    hasher.ins[0] <== commitment;
-    hasher.ins[1] <== merklePath;
-    hasher.ins[2] <== privateKey;
-    hasher.k <== 0;
-
-    nullifier <== hasher.outs[0];
+    component hasher = Poseidon(3);
+    hasher.inputs[0] <== commitment;
+    hasher.inputs[1] <== merklePath;
+    hasher.inputs[2] <== privateKey;
+    nullifier <== hasher.out;
 }

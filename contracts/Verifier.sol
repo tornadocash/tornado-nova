@@ -1,1 +1,1 @@
-../build/circuits/Verifier.sol
+../artifacts/circuits/Verifier.sol

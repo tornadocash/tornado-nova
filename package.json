@@ -7,13 +7,11 @@
     "test": "test"
   },
   "scripts": {
-    "build:circuit:compile": "npx circom circuits/transaction.circom -o build/circuits/transaction.json && npx snarkjs info -c build/circuits/transaction.json",
-    "build:circuit:setup": "npx snarkjs setup --protocol groth -c build/circuits/transaction.json --pk build/circuits/transaction_proving_key.json --vk build/circuits/transaction_verification_key.json",
-    "build:circuit:bin": "node node_modules/websnark/tools/buildpkey.js -i build/circuits/transaction_proving_key.json -o build/circuits/transaction_proving_key.bin",
-    "build:circuit:contract": "npx snarkjs generateverifier -v build/circuits/Verifier.sol --vk build/circuits/transaction_verification_key.json",
-    "build:circuit": "mkdir -p build/circuits && npm run build:circuit:compile && npm run build:circuit:setup && npm run build:circuit:bin && npm run build:circuit:contract",
+    "build:circuit": "./scripts/buildCircuit.sh transaction",
     "build:contract": "npx hardhat compile",
     "build": "npm run build:circuit && npm run build:contract",
+    "migrate": "npx hardhat run scripts/deploy.js --network localhost",
+    "start": "node ./src/index.js"
   },
   "keywords": [],
   "author": "",
@@ -21,15 +19,19 @@
   "dependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
-    "@openzeppelin/contracts": "^2.5.0",
+    "@openzeppelin/contracts": "^3.4.0",
     "bignumber.js": "^9.0.0",
-    "circom": "0.0.35",
-    "circomlib": "git+https://github.com/tornadocash/circomlib.git#c372f14d324d57339c88451834bf2824e73bbdbc",
+    "circom": "0.5.42",
+    "circom_runtime": "^0.1.12",
+    "circomlib": "git+https://github.com/tornadocash/circomlib.git#d20d53411d1bef61f38c99a8b36d5d0cc4836aa1",
     "dotenv": "^10.0.0",
     "ethereum-waffle": "^3.2.0",
     "ethers": "^5.0.0",
+    "ffiasm": "^0.1.1",
+    "ffjavascript": "^0.2.35",
+    "fixed-merkle-tree": "^0.5.0",
     "hardhat": "^2.3.0",
-    "snarkjs": "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5",
-    "websnark": "git+https://github.com/tornadocash/websnark.git#2041cfa5fa0b71cd5cca9022a4eeea4afe28c9f7"
+    "snarkjs": "^0.3.57",
+    "tmp-promise": "^3.0.2"
   }
 }

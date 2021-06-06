@@ -1,4 +1,4 @@
-include "../node_modules/circomlib/circuits/mimcsponge.circom";
+include "../node_modules/circomlib/circuits/poseidon.circom";
 
 // Computes MiMC([left, right])
 template HashLeftRight() {
@@ -6,11 +6,10 @@ template HashLeftRight() {
     signal input right;
     signal output hash;
 
-    component hasher = MiMCSponge(2, 1);
-    hasher.ins[0] <== left;
-    hasher.ins[1] <== right;
-    hasher.k <== 0;
-    hash <== hasher.outs[0];
+    component hasher = Poseidon(2);
+    hasher.inputs[0] <== left;
+    hasher.inputs[1] <== right;
+    hash <== hasher.out;
 }
 
 // if s == 0 returns [in[0], in[1]]

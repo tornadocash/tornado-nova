@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // https://tornado.cash
 /*
 * d888888P                                           dP              a88888b.                   dP
@@ -9,12 +10,12 @@
 * ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo
 */
 
-pragma solidity ^0.5.8;
+pragma solidity ^0.6.0;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol"; // todo: maybe remove?
 
-contract IVerifier {
-  function verifyProof(bytes memory _proof, uint256[10] memory _input) public returns(bool);
+interface IVerifier {
+  function verifyProof(bytes memory _proof, uint256[10] memory _input) external returns(bool);
 }
 
 contract TornadoPool is ReentrancyGuard {
@@ -78,11 +79,11 @@ contract TornadoPool is ReentrancyGuard {
       require(msg.value == uint256(extAmount), "Incorrect amount of ETH sent on deposit");
     } else {
       require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
-      transfer(_recipient, uint256(-extAmount));
+      _recipient.transfer(uint256(-extAmount));
     }
 
     if (_fee > 0) {
-      transfer(_relayer, _fee);
+      _recipient.transfer(_fee);
     }
 
     // todo enforce currentCommitmentIndex value in snark
@@ -105,23 +106,18 @@ contract TornadoPool is ReentrancyGuard {
     }
   }
 
-  function transfer(address payable to, uint256 amount) internal {
-    (bool success, ) = to.call.value(amount)("");
-    require(success, "payment did not go through");
-  }
-
   /** @dev whether a note is already spent */
   function isSpent(bytes32 _nullifierHash) public view returns(bool) {
     return nullifierHashes[_nullifierHash];
   }
 
-  /** @dev whether an array of notes is already spent */
-  function isSpentArray(bytes32[] calldata _nullifierHashes) external view returns(bool[] memory spent) {
-    spent = new bool[](_nullifierHashes.length);
-    for(uint i = 0; i < _nullifierHashes.length; i++) {
-      if (isSpent(_nullifierHashes[i])) {
-        spent[i] = true;
-      }
-    }
-  }
+  // /** @dev whether an array of notes is already spent */
+  // function isSpentArray(bytes32[] calldata _nullifierHashes) external view returns(bool[] memory spent) {
+  //   spent = new bool[](_nullifierHashes.length);
+  //   for(uint i = 0; i < _nullifierHashes.length; i++) {
+  //     if (isSpent(_nullifierHashes[i])) {
+  //       spent[i] = true;
+  //     }
+  //   }
+  // }
 }
