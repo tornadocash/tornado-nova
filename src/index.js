@@ -1,8 +1,5 @@
 /* eslint-disable no-console */
 const MerkleTree = require('fixed-merkle-tree')
-const fs = require('fs')
-const crypto = require('crypto')
-const { poseidon } = require('circomlib')
 const Web3 = require('web3')
 const { ethers } = require('hardhat')
 const { BigNumber } = ethers
@@ -85,63 +82,85 @@ async function insertOutput(tree, output) {
   output.merklePathElements = pathElements
 }
 
-async function deposit() {
-  const amount = 1e6
-  const tree = await buildMerkleTree()
-  const oldRoot = await tree.root()
-  const keypair = randomKeypair()
-  const tx = createDeposit(amount, keypair)
-  await insertOutput(tree, tx.outputs[0])
-  await insertOutput(tree, tx.outputs[1])
-  console.log('Note', tx.outputs[0])
+async function getProof({ input1, input2, output1, output2, tree, extAmount, fee, recipient, relayer }) {
+  const oldRoot = tree.root()
 
-  let input = {
-    root: oldRoot,
-    newRoot: await tree.root(),
-    inputNullifier: [tx.inputs[0].nullifier, tx.inputs[1].nullifier],
-    outputCommitment: [tx.outputs[0].commitment, tx.outputs[1].commitment],
-    extAmount: amount,
-    fee: 0,
-    recipient: 0,
-    relayer: 0,
+  // if deposit require(extAmount > 0)
 
-    // private inputs
-    privateKey: tx.inputs[0].privkey,
-
-    // data for 2 transaction inputs
-    inAmount: [tx.inputs[0].amount, tx.inputs[1].amount],
-    inBlinding: [tx.inputs[0].blinding, tx.inputs[1].blinding],
-    inPathIndices: [
-      bitsToNumber(tx.inputs[0].merklePathIndices),
-      bitsToNumber(tx.inputs[1].merklePathIndices),
-    ],
-    inPathElements: [tx.inputs[0].merklePathElements, tx.inputs[1].merklePathElements],
-
-    // data for 2 transaction outputs
-    outAmount: [tx.outputs[0].amount, tx.outputs[1].amount],
-    outBlinding: [tx.outputs[0].blinding, tx.outputs[1].blinding],
-    outPubkey: [tx.outputs[0].pubkey, tx.outputs[1].pubkey],
-    outPathIndices: bitsToNumber(tx.outputs[0].merklePathIndices.slice(1)),
-    outPathElements: tx.outputs[0].merklePathElements.slice(1),
+  if (input1.amount !== 0) {
+    // transact
+    const index1 = await tree.indexOf(toFixedHex(input1.commitment))
+    const path1 = await tree.path(index1)
   }
 
-  // console.log('input', JSON.stringify(stringifyBigInts(input)))
-  console.log('DEPOSIT input', input)
+  await insertOutput(tree, output1)
+  await insertOutput(tree, output2)
+
+  extData = recipient + relayer // TODO
+  let input = {
+    root: oldRoot,
+    newRoot: tree.root(),
+    inputNullifier: [input1.nullifier, input2.nullifier],
+    outputCommitment: [outputs1.commitment, outputs2.commitment],
+    extAmount,
+    fee,
+    extData,
+
+    // private inputs
+    privateKey: inputs1.privkey, // TODO make sure you use the right one when you shuffle inputs
+
+    // data for 2 transaction inputs
+    inAmount: [inputs1.amount, inputs2.amount],
+    inBlinding: [inputs1.blinding, inputs2.blinding],
+    inPathIndices: [bitsToNumber(inputs1.merklePathIndices), bitsToNumber(inputs2.merklePathIndices)],
+    inPathElements: [inputs1.merklePathElements, inputs2.merklePathElements],
+
+    // data for 2 transaction outputs
+    outAmount: [outputs1.amount, outputs2.amount],
+    outBlinding: [outputs1.blinding, outputs2.blinding],
+    outPubkey: [outputs1.pubkey, outputs2.pubkey],
+    outPathIndices: bitsToNumber[outputs1.merklePathIndices.slice(1)],
+    outPathElements: [outputs1.merklePathElements.slice(1)],
+  }
+
+  console.log('SNARK input', input)
 
   console.log('Generating SNARK proof...')
-
   const proof = await prove(input, './artifacts/circuits/transaction')
 
   const args = [
     toFixedHex(input.root),
     toFixedHex(input.newRoot),
-    [toFixedHex(tx.inputs[0].nullifier), toFixedHex(tx.inputs[1].nullifier)],
-    [toFixedHex(tx.outputs[0].commitment), toFixedHex(tx.outputs[1].commitment)],
-    toFixedHex(amount),
+    [toFixedHex(input1.nullifier), toFixedHex(input2.nullifier)],
+    [toFixedHex(output1.commitment), toFixedHex(output2.commitment)],
+    toFixedHex(0),
     toFixedHex(input.fee),
-    toFixedHex(input.recipient, 20),
-    toFixedHex(input.relayer, 20),
+    toFixedHex(extData), // extData hash actually
   ]
+
+  return {
+    proof,
+    args,
+  }
+}
+
+async function deposit() {
+  const amount = 1e6
+  const tree = await buildMerkleTree()
+  const keypair = randomKeypair()
+  const tx = createDeposit(amount, keypair)
+
+  const { proof, args } = await getProof({
+    input1: tx.inputs[0],
+    input2: tx.inputs[1],
+    output1: tx.outputs[1],
+    output2: tx.outputs[1],
+    tree,
+    extAmount: amount,
+    fee: 0,
+    recipient: 0,
+    relayer: 0,
+  })
 
   console.log('Sending deposit transaction...')
   const receipt = await contract.methods

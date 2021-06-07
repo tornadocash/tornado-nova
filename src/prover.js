@@ -6,8 +6,6 @@ const tmp = require('tmp-promise')
 const util = require('util')
 const exec = util.promisify(require('child_process').exec)
 
-function stringify() {}
-
 function prove(input, keyBasePath) {
   input = utils.stringifyBigInts(input)
   console.log('input', input)

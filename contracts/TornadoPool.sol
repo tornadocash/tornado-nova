@@ -11,11 +11,12 @@
 */
 
 pragma solidity ^0.6.0;
+pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol"; // todo: maybe remove?
 
 interface IVerifier {
-  function verifyProof(bytes memory _proof, uint256[10] memory _input) external returns(bool);
+  function verifyProof(bytes memory _proof, uint256[9] memory _input) external returns(bool);
 }
 
 contract TornadoPool is ReentrancyGuard {
@@ -27,8 +28,15 @@ contract TornadoPool is ReentrancyGuard {
   uint public currentCommitmentIndex;
   IVerifier public verifier;
 
+  struct ExtData {
+    address payable _recipient;
+    address payable _relayer;
+    bytes encryptedOutput1;
+    bytes encryptedOutput2;
+  }
+
   // todo: event Transaction();
-  event NewCommitment(bytes32 commitment, uint index);
+  event NewCommitment(bytes32 commitment, uint index, bytes encryptedOutput);
   event NewNullifier(bytes32 nullifier);
   event Withdraw(bytes32 indexed nullifier); // todo emit it on withdraw so we can easily find the withdraw tx for user on UI
 
@@ -49,14 +57,15 @@ contract TornadoPool is ReentrancyGuard {
     bytes32[2] calldata _outputCommitments,
     uint256 _extAmount,
     uint256 _fee,
-    address payable _recipient,
-    address payable _relayer
+    ExtData calldata _extData,
+    bytes32 _extDataHash
   )
     external payable nonReentrant
   {
     require(currentRoot == _root, "Invalid merkle root");
     require(!isSpent(_inputNullifiers[0]), "Input 0 is already spent");
     require(!isSpent(_inputNullifiers[1]), "Input 1 is already spent");
+    require(uint256(_extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
     require(verifier.verifyProof(_proof, [
       uint256(_root),
       uint256(_newRoot),
@@ -66,8 +75,7 @@ contract TornadoPool is ReentrancyGuard {
       uint256(_outputCommitments[1]),
       _extAmount,
       _fee,
-      uint256(_recipient),
-      uint256(_relayer)
+      uint256(_extDataHash)
     ]), "Invalid transaction proof");
 
     currentRoot = _newRoot;
@@ -79,16 +87,16 @@ contract TornadoPool is ReentrancyGuard {
       require(msg.value == uint256(extAmount), "Incorrect amount of ETH sent on deposit");
     } else {
       require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
-      _recipient.transfer(uint256(-extAmount));
+      _extData._recipient.transfer(uint256(-extAmount));
     }
 
     if (_fee > 0) {
-      _recipient.transfer(_fee);
+      _extData._relayer.transfer(_fee);
     }
 
     // todo enforce currentCommitmentIndex value in snark
-    emit NewCommitment(_outputCommitments[0], currentCommitmentIndex++);
-    emit NewCommitment(_outputCommitments[1], currentCommitmentIndex++);
+    emit NewCommitment(_outputCommitments[0], currentCommitmentIndex++, _extData.encryptedOutput1);
+    emit NewCommitment(_outputCommitments[1], currentCommitmentIndex++, _extData.encryptedOutput2);
     emit NewNullifier(_inputNullifiers[0]);
     emit NewNullifier(_inputNullifiers[1]);
     // emit Transaction();
@@ -110,14 +118,4 @@ contract TornadoPool is ReentrancyGuard {
   function isSpent(bytes32 _nullifierHash) public view returns(bool) {
     return nullifierHashes[_nullifierHash];
   }
-
-  // /** @dev whether an array of notes is already spent */
-  // function isSpentArray(bytes32[] calldata _nullifierHashes) external view returns(bool[] memory spent) {
-  //   spent = new bool[](_nullifierHashes.length);
-  //   for(uint i = 0; i < _nullifierHashes.length; i++) {
-  //     if (isSpent(_nullifierHashes[i])) {
-  //       spent[i] = true;
-  //     }
-  //   }
-  // }
 }

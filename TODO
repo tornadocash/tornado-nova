@@ -1,4 +1,11 @@
-* update verifier version
-* shuffle outputs
-* utxo data encryption for recipient
-* poseidon
+* shuffle outputs and inputs
+* utxo data encryption for recipient as for mining
+  - combine privkey hash and ethereum public key = address
+* outputs merging
+* switch web3 to etherjs
+* tests
+* wasmsnark
+* ERC20?
+* design
+* relayer
+* race condition ?
