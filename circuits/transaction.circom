@@ -26,11 +26,10 @@ template Transaction(levels, zeroLeaf) {
     signal input fee;
     signal input extDataHash;
 
-    signal private input privateKey;
-
     // data for 2 transaction inputs
     signal private input inAmount[2];
     signal private input inBlinding[2];
+    signal private input inPrivateKey[2];
     signal private input inPathIndices[2];
     signal private input inPathElements[2][levels];
 
@@ -42,6 +41,7 @@ template Transaction(levels, zeroLeaf) {
     signal private input outPathElements[levels - 1];
 
     component inUtxoHasher[2];
+    component inKeypair[2];
     component outUtxoHasher[2];
     component nullifierHasher[2];
     component checkRoot[2]
@@ -49,20 +49,20 @@ template Transaction(levels, zeroLeaf) {
     component inAmountCheck[2];
     component outAmountCheck[2];
 
-    component keypair = Keypair();
-    keypair.privateKey <== privateKey;
-
     // verify correctness of transaction inputs
     for (var tx = 0; tx < 2; tx++) {
+        inKeypair[tx] = Keypair();
+        inKeypair[tx].privateKey <== inPrivateKey[tx];
+
         inUtxoHasher[tx] = TransactionHasher();
         inUtxoHasher[tx].amount <== inAmount[tx];
         inUtxoHasher[tx].blinding <== inBlinding[tx];
-        inUtxoHasher[tx].publicKey <== keypair.publicKey;
+        inUtxoHasher[tx].publicKey <== inKeypair[tx].publicKey;
 
         nullifierHasher[tx] = NullifierHasher();
         nullifierHasher[tx].commitment <== inUtxoHasher[tx].commitment;
         nullifierHasher[tx].merklePath <== inPathIndices[tx];
-        nullifierHasher[tx].privateKey <== keypair.privateKey;
+        nullifierHasher[tx].privateKey <== inPrivateKey[tx];
         nullifierHasher[tx].nullifier === inputNullifier[tx];
 
         tree[tx] = MerkleTree(levels);

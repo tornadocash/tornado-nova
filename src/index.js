@@ -3,67 +3,13 @@ const MerkleTree = require('fixed-merkle-tree')
 const Web3 = require('web3')
 const { ethers } = require('hardhat')
 const { BigNumber } = ethers
-const { randomBN, bitsToNumber, toFixedHex, toBuffer, poseidonHash, poseidonHash2 } = require('./utils')
+const { toFixedHex, poseidonHash2, getExtDataHash, FIELD_SIZE } = require('./utils')
+const Utxo = require('./utxo')
 
 let contract, web3
 const { prove } = require('./prover')
-const FIELD_SIZE = '21888242871839275222246405745257275088548364400416034343698204186575808495617'
 const MERKLE_TREE_HEIGHT = 5
 const RPC_URL = 'http://localhost:8545'
-
-function fromPrivkey(privkey) {
-  return {
-    privkey,
-    pubkey: poseidonHash([privkey]),
-  }
-}
-
-function randomKeypair() {
-  return fromPrivkey(randomBN())
-}
-
-function createZeroUtxo(keypair) {
-  return createUtxo(
-    0,
-    randomBN(),
-    keypair.pubkey,
-    keypair.privkey,
-    Array(MERKLE_TREE_HEIGHT).fill(0),
-    Array(MERKLE_TREE_HEIGHT).fill(0),
-  )
-}
-
-function createOutput(amount, pubkey) {
-  if (!pubkey) {
-    throw new Error('no pubkey')
-  }
-  return createUtxo(amount, randomBN(), pubkey)
-}
-
-function createInput({ amount, blinding, pubkey, privkey, merklePathIndices, merklePathElements }) {
-  return createUtxo(amount, blinding, pubkey, privkey, merklePathIndices, merklePathElements)
-}
-
-/// unsafe function without sanity checks
-function createUtxo(amount, blinding, pubkey, privkey, merklePathIndices, merklePathElements) {
-  let utxo = { amount, blinding, pubkey, privkey, merklePathIndices, merklePathElements }
-  utxo.commitment = poseidonHash([amount, blinding, pubkey])
-  if (privkey) {
-    utxo.nullifier = poseidonHash([utxo.commitment, bitsToNumber(merklePathIndices), privkey])
-  }
-  return utxo
-}
-
-function createDeposit(amount, keypair) {
-  const fakeKeypair = randomKeypair()
-  const output = createOutput(amount, keypair.pubkey)
-  output.privkey = keypair.privkey
-  const tx = {
-    inputs: [createZeroUtxo(fakeKeypair), createZeroUtxo(fakeKeypair)],
-    outputs: [output, createZeroUtxo(fakeKeypair)], // todo shuffle
-  }
-  return tx
-}
 
 async function buildMerkleTree() {
   console.log('Getting contract state...')
@@ -71,59 +17,74 @@ async function buildMerkleTree() {
   const leaves = events
     .sort((a, b) => a.returnValues.index - b.returnValues.index) // todo sort by event date
     .map((e) => toFixedHex(e.returnValues.commitment))
-  console.log('leaves', leaves)
+  // console.log('leaves', leaves)
   return new MerkleTree(MERKLE_TREE_HEIGHT, leaves, { hashFunction: poseidonHash2 })
 }
 
-async function insertOutput(tree, output) {
-  await tree.insert(output.commitment)
-  let { pathElements, pathIndices } = await tree.path(tree.elements().length - 1)
-  output.merklePathIndices = pathIndices
-  output.merklePathElements = pathElements
-}
-
-async function getProof({ input1, input2, output1, output2, tree, extAmount, fee, recipient, relayer }) {
-  const oldRoot = tree.root()
-
-  // if deposit require(extAmount > 0)
-
-  if (input1.amount !== 0) {
-    // transact
-    const index1 = await tree.indexOf(toFixedHex(input1.commitment))
-    const path1 = await tree.path(index1)
+async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, relayer }) {
+  // todo shuffle inputs and outputs
+  if (inputs.length !== 2 || outputs.length !== 2 ) {
+    throw new Error('Unsupported number of inputs/outputs')
   }
 
-  await insertOutput(tree, output1)
-  await insertOutput(tree, output2)
+  let inputMerklePathIndices = []
+  let inputMerklePathElements = []
 
-  extData = recipient + relayer // TODO
+  for (const input of inputs) {
+    if (input.amount > 0) {
+      const index = tree.indexOf(toFixedHex(input.getCommitment()))
+      if (index < 0) {
+        throw new Error(`Input commitment ${input.getCommitment()} was not found`)
+      }
+      inputMerklePathIndices.push(index)
+      inputMerklePathElements.push(tree.path(index).pathElements)
+    } else {
+      inputMerklePathIndices.push(0)
+      inputMerklePathElements.push(new Array(tree.levels).fill(0))
+    }
+  }
+
+  const oldRoot = tree.root()
+  for (const output of outputs) {
+    output.index = tree.elements().length
+    tree.insert(output.getCommitment())
+  }
+  const outputIndex = tree.elements().length - 1
+  const outputPath = tree.path(outputIndex).pathElements.slice(1)
+
+  const extData = {
+    recipient: toFixedHex(recipient, 20),
+    relayer: toFixedHex(relayer, 20),
+    encryptedOutput1: '0xff',
+    encryptedOutput2: '0xff',
+  }
+
+  const extDataHash = getExtDataHash(extData)
   let input = {
     root: oldRoot,
     newRoot: tree.root(),
-    inputNullifier: [input1.nullifier, input2.nullifier],
-    outputCommitment: [outputs1.commitment, outputs2.commitment],
+    inputNullifier: inputs.map(x => x.getNullifier()),
+    outputCommitment: outputs.map(x => x.getCommitment()),
     extAmount,
     fee,
-    extData,
-
-    // private inputs
-    privateKey: inputs1.privkey, // TODO make sure you use the right one when you shuffle inputs
+    extDataHash,
 
     // data for 2 transaction inputs
-    inAmount: [inputs1.amount, inputs2.amount],
-    inBlinding: [inputs1.blinding, inputs2.blinding],
-    inPathIndices: [bitsToNumber(inputs1.merklePathIndices), bitsToNumber(inputs2.merklePathIndices)],
-    inPathElements: [inputs1.merklePathElements, inputs2.merklePathElements],
+    inAmount: inputs.map(x => x.amount),
+    inPrivateKey: inputs.map(x => x.privkey),
+    inBlinding: inputs.map(x => x.blinding),
+    inPathIndices: inputMerklePathIndices,
+    inPathElements: inputMerklePathElements,
 
     // data for 2 transaction outputs
-    outAmount: [outputs1.amount, outputs2.amount],
-    outBlinding: [outputs1.blinding, outputs2.blinding],
-    outPubkey: [outputs1.pubkey, outputs2.pubkey],
-    outPathIndices: bitsToNumber[outputs1.merklePathIndices.slice(1)],
-    outPathElements: [outputs1.merklePathElements.slice(1)],
+    outAmount: outputs.map(x => x.amount),
+    outBlinding: outputs.map(x => x.blinding),
+    outPubkey: outputs.map(x => x.pubkey),
+    outPathIndices: outputIndex >> 1,
+    outPathElements: outputPath,
   }
 
-  console.log('SNARK input', input)
+  //console.log('SNARK input', input)
 
   console.log('Generating SNARK proof...')
   const proof = await prove(input, './artifacts/circuits/transaction')
@@ -131,12 +92,14 @@ async function getProof({ input1, input2, output1, output2, tree, extAmount, fee
   const args = [
     toFixedHex(input.root),
     toFixedHex(input.newRoot),
-    [toFixedHex(input1.nullifier), toFixedHex(input2.nullifier)],
-    [toFixedHex(output1.commitment), toFixedHex(output2.commitment)],
-    toFixedHex(0),
-    toFixedHex(input.fee),
-    toFixedHex(extData), // extData hash actually
+    inputs.map(x => toFixedHex(x.getNullifier())),
+    outputs.map(x => toFixedHex(x.getCommitment())),
+    toFixedHex(extAmount),
+    toFixedHex(fee),
+    extData,
+    toFixedHex(extDataHash),
   ]
+  // console.log('Solidity args', args)
 
   return {
     proof,
@@ -146,16 +109,13 @@ async function getProof({ input1, input2, output1, output2, tree, extAmount, fee
 
 async function deposit() {
   const amount = 1e6
-  const tree = await buildMerkleTree()
-  const keypair = randomKeypair()
-  const tx = createDeposit(amount, keypair)
+  const inputs = [new Utxo(), new Utxo()]
+  const outputs = [new Utxo({ amount }), new Utxo()]
 
   const { proof, args } = await getProof({
-    input1: tx.inputs[0],
-    input2: tx.inputs[1],
-    output1: tx.outputs[1],
-    output2: tx.outputs[1],
-    tree,
+    inputs,
+    outputs,
+    tree: await buildMerkleTree(),
     extAmount: amount,
     fee: 0,
     recipient: 0,
@@ -167,155 +127,47 @@ async function deposit() {
     .transaction(proof, ...args)
     .send({ value: amount, from: web3.eth.defaultAccount, gas: 1e6 })
   console.log(`Receipt ${receipt.transactionHash}`)
-  return tx.outputs[0]
+  return outputs[0]
 }
 
-async function transact(txOutput) {
-  console.log('txOutput', txOutput)
-  const tree = await buildMerkleTree()
-  console.log('tree', tree)
-  const oldRoot = await tree.root()
-  const keypair = randomKeypair()
+async function transact(utxo) {
+  const inputs = [utxo, new Utxo()]
+  const outputs = [
+    new Utxo({ amount: utxo.amount / 4 }),
+    new Utxo({ amount: utxo.amount * 3 / 4, privkey: utxo.privkey}),
+  ]
 
-  const index = await tree.indexOf(toFixedHex(txOutput.commitment))
-  console.log('index', index)
-  const { pathElements, pathIndices } = await tree.path(index)
-  console.log('pathIndices', pathIndices)
-  txOutput.merklePathElements = pathElements
-  const input1 = createInput(txOutput)
-  const tx = {
-    inputs: [input1, createZeroUtxo(fromPrivkey(txOutput.privkey))],
-    outputs: [
-      createOutput(txOutput.amount / 4, keypair.pubkey),
-      createOutput((txOutput.amount * 3) / 4, txOutput.pubkey),
-    ], // todo shuffle
-  }
-  tx.outputs[0].privkey = keypair.privkey
-  tx.outputs[1].privkey = txOutput.privkey
-  await insertOutput(tree, tx.outputs[0])
-  await insertOutput(tree, tx.outputs[1])
-  console.log('Note', tx.outputs[0])
-
-  let input = {
-    root: oldRoot,
-    newRoot: await tree.root(),
-    inputNullifier: [tx.inputs[0].nullifier, tx.inputs[1].nullifier],
-    outputCommitment: [tx.outputs[0].commitment, tx.outputs[1].commitment],
+  const { proof, args } = await getProof({
+    inputs,
+    outputs,
+    tree: await buildMerkleTree(),
     extAmount: 0,
     fee: 0,
     recipient: 0,
     relayer: 0,
-
-    // private inputs
-    privateKey: tx.inputs[0].privkey,
-
-    // data for 2 transaction inputs
-    inAmount: [tx.inputs[0].amount, tx.inputs[1].amount],
-    inBlinding: [tx.inputs[0].blinding, tx.inputs[1].blinding],
-    inPathIndices: [
-      bitsToNumber(tx.inputs[0].merklePathIndices),
-      bitsToNumber(tx.inputs[1].merklePathIndices),
-    ],
-    inPathElements: [tx.inputs[0].merklePathElements, tx.inputs[1].merklePathElements],
-
-    // data for 2 transaction outputs
-    outAmount: [tx.outputs[0].amount, tx.outputs[1].amount],
-    outBlinding: [tx.outputs[0].blinding, tx.outputs[1].blinding],
-    outPubkey: [tx.outputs[0].pubkey, tx.outputs[1].pubkey],
-    outPathIndices: bitsToNumber(tx.outputs[0].merklePathIndices.slice(1)),
-    outPathElements: tx.outputs[0].merklePathElements.slice(1),
-  }
-
-  console.log('TRANSFER input', input)
-
-  console.log('Generating SNARK proof...')
-  const proof = await prove(input, './artifacts/circuits/transaction')
-
-  const args = [
-    toFixedHex(input.root),
-    toFixedHex(input.newRoot),
-    [toFixedHex(tx.inputs[0].nullifier), toFixedHex(tx.inputs[1].nullifier)],
-    [toFixedHex(tx.outputs[0].commitment), toFixedHex(tx.outputs[1].commitment)],
-    toFixedHex(0),
-    toFixedHex(input.fee),
-    toFixedHex(input.recipient, 20),
-    toFixedHex(input.relayer, 20),
-  ]
+  })
 
   console.log('Sending transfer transaction...')
   const receipt = await contract.methods
     .transaction(proof, ...args)
     .send({ from: web3.eth.defaultAccount, gas: 1e6 })
   console.log(`Receipt ${receipt.transactionHash}`)
-  return tx.outputs[0]
+  return outputs[0]
 }
 
-async function withdraw(txOutput) {
-  console.log('txOutput', txOutput)
-  const tree = await buildMerkleTree()
-  const oldRoot = await tree.root()
+async function withdraw(utxo) {
+  const inputs = [utxo, new Utxo()]
+  const outputs = [new Utxo(), new Utxo()]
 
-  const index = await tree.indexOf(toFixedHex(txOutput.commitment))
-  console.log('index', index)
-  const { pathElements, pathIndices } = await tree.path(index)
-  console.log('pathIndices', pathIndices)
-  txOutput.merklePathElements = pathElements
-  const input1 = createInput(txOutput)
-  const fakeKeypair = randomKeypair()
-  const tx = {
-    inputs: [input1, createZeroUtxo(fromPrivkey(txOutput.privkey))],
-    outputs: [createZeroUtxo(fakeKeypair), createZeroUtxo(fakeKeypair)], // todo shuffle
-  }
-  await insertOutput(tree, tx.outputs[0])
-  await insertOutput(tree, tx.outputs[1])
-
-  let input = {
-    root: oldRoot,
-    newRoot: await tree.root(),
-    inputNullifier: [tx.inputs[0].nullifier, tx.inputs[1].nullifier],
-    outputCommitment: [tx.outputs[0].commitment, tx.outputs[1].commitment],
-    extAmount: BigNumber.from(FIELD_SIZE).sub(BigNumber.from(txOutput.amount)),
+  const { proof, args } = await getProof({
+    inputs,
+    outputs,
+    tree: await buildMerkleTree(),
+    extAmount: FIELD_SIZE.sub(utxo.amount),
     fee: 0,
     recipient: '0xc2Ba33d4c0d2A92fb4f1a07C273c5d21E688Eb48',
     relayer: 0,
-
-    // private inputs
-    privateKey: tx.inputs[0].privkey,
-
-    // data for 2 transaction inputs
-    inAmount: [tx.inputs[0].amount, tx.inputs[1].amount],
-    inBlinding: [tx.inputs[0].blinding, tx.inputs[1].blinding],
-    inPathIndices: [
-      bitsToNumber(tx.inputs[0].merklePathIndices),
-      bitsToNumber(tx.inputs[1].merklePathIndices),
-    ],
-    inPathElements: [tx.inputs[0].merklePathElements, tx.inputs[1].merklePathElements],
-
-    // data for 2 transaction outputs
-    outAmount: [tx.outputs[0].amount, tx.outputs[1].amount],
-    outBlinding: [tx.outputs[0].blinding, tx.outputs[1].blinding],
-    outPubkey: [tx.outputs[0].pubkey, tx.outputs[1].pubkey],
-    outPathIndices: bitsToNumber(tx.outputs[0].merklePathIndices.slice(1)),
-    outPathElements: tx.outputs[0].merklePathElements.slice(1),
-  }
-
-  console.log('WITHDRAW input', input)
-
-  console.log('Generating SNARK proof...')
-  const proof = await prove(input, './artifacts/circuits/transaction')
-
-  const args = [
-    toFixedHex(input.root),
-    toFixedHex(input.newRoot),
-    [toFixedHex(tx.inputs[0].nullifier), toFixedHex(tx.inputs[1].nullifier)],
-    [toFixedHex(tx.outputs[0].commitment), toFixedHex(tx.outputs[1].commitment)],
-    toFixedHex(input.extAmount),
-    toFixedHex(input.fee),
-    toFixedHex(input.recipient, 20),
-    toFixedHex(input.relayer, 20),
-  ]
-
-  console.log('args', args)
+  })
 
   console.log('Sending withdraw transaction...')
   const receipt = await contract.methods
@@ -333,12 +185,12 @@ async function main() {
   })
   netId = await web3.eth.net.getId()
   const contractData = require('../artifacts/contracts/TornadoPool.sol/TornadoPool.json')
-  contract = new web3.eth.Contract(contractData.abi, '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9')
+  contract = new web3.eth.Contract(contractData.abi, '0x0E801D84Fa97b50751Dbf25036d067dCf18858bF')
   web3.eth.defaultAccount = (await web3.eth.getAccounts())[0]
 
-  const txOutput = await deposit()
-  const txOutput1 = await transact(txOutput)
-  await withdraw(txOutput1)
+  const utxo1 = await deposit()
+  const utxo2 = await transact(utxo1)
+  await withdraw(utxo2)
 }
 
 main()

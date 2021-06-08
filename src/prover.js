@@ -8,7 +8,7 @@ const exec = util.promisify(require('child_process').exec)
 
 function prove(input, keyBasePath) {
   input = utils.stringifyBigInts(input)
-  console.log('input', input)
+  // console.log('input', input)
   return tmp.dir().then(async (dir) => {
     dir = dir.path
     let out
@@ -28,6 +28,8 @@ function prove(input, keyBasePath) {
       out = await exec(
         `zkutil prove -c ${keyBasePath}.r1cs -p ${keyBasePath}.params -w ${dir}/witness.json -r ${dir}/proof.json -o ${dir}/public.json`,
       )
+      // todo catch inconsistent input during witness generation
+      await exec(`zkutil verify -p ${keyBasePath}.params -r ${dir}/proof.json -i ${dir}/public.json`)
     } catch (e) {
       console.log(out, e)
       throw e

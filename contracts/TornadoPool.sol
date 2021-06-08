@@ -29,8 +29,8 @@ contract TornadoPool is ReentrancyGuard {
   IVerifier public verifier;
 
   struct ExtData {
-    address payable _recipient;
-    address payable _relayer;
+    address payable recipient;
+    address payable relayer;
     bytes encryptedOutput1;
     bytes encryptedOutput2;
   }
@@ -87,11 +87,11 @@ contract TornadoPool is ReentrancyGuard {
       require(msg.value == uint256(extAmount), "Incorrect amount of ETH sent on deposit");
     } else {
       require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
-      _extData._recipient.transfer(uint256(-extAmount));
+      _extData.recipient.transfer(uint256(-extAmount));
     }
 
     if (_fee > 0) {
-      _extData._relayer.transfer(_fee);
+      _extData.relayer.transfer(_fee);
     }
 
     // todo enforce currentCommitmentIndex value in snark
