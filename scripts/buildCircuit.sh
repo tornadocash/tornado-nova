@@ -1,5 +1,5 @@
 #!/bin/bash -e
-POWERS_OF_TAU=14 # circuit will support max 2^POWERS_OF_TAU constraints
+POWERS_OF_TAU=15 # circuit will support max 2^POWERS_OF_TAU constraints
 mkdir -p artifacts/circuits
 if [ ! -f artifacts/circuits/ptau$POWERS_OF_TAU ]; then
   echo "Generating powers of tau file"

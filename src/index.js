@@ -21,9 +21,6 @@ async function buildMerkleTree({ tornadoPool }) {
 
 async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, relayer }) {
   // todo shuffle inputs and outputs
-  if (inputs.length !== 2 || outputs.length !== 2) {
-    throw new Error('Unsupported number of inputs/outputs')
-  }
 
   let inputMerklePathIndices = []
   let inputMerklePathElements = []
@@ -48,7 +45,7 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
     tree.insert(output.getCommitment())
   }
   const outputIndex = tree.elements().length - 1
-  const outputPath = tree.path(outputIndex).pathElements.slice(1)
+  const outputPath = tree.path(outputIndex).pathElements
 
   const extData = {
     recipient: toFixedHex(recipient, 20),
@@ -78,14 +75,14 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
     outAmount: outputs.map((x) => x.amount),
     outBlinding: outputs.map((x) => x.blinding),
     outPubkey: outputs.map((x) => x.pubkey),
-    outPathIndices: outputIndex >> 1,
-    outPathElements: outputPath,
+    outPathIndices: outputIndex >> Math.log2(outputs.length),
+    outPathElements: outputPath.slice(Math.log2(outputs.length)),
   }
 
   //console.log('SNARK input', input)
 
   console.log('Generating SNARK proof...')
-  const proof = await prove(input, './artifacts/circuits/transaction')
+  const proof = await prove(input, `./artifacts/circuits/transaction${inputs.length}`)
 
   const args = [
     toFixedHex(input.root),

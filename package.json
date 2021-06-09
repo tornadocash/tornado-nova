@@ -7,7 +7,7 @@
     "test": "test"
   },
   "scripts": {
-    "circuit": "./scripts/buildCircuit.sh transaction",
+    "circuit": "./scripts/buildCircuit.sh transaction2 && ./scripts/buildCircuit.sh transaction16",
     "compile": "npx hardhat compile",
     "build": "npm run circuit && npm run compile",
     "migrate": "npx hardhat run scripts/deploy.js --network localhost",

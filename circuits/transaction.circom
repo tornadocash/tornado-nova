@@ -15,42 +15,41 @@ nullifier = hash(commitment, privKey, merklePath)
 */
 
 // Universal JoinSplit transaction with 2 inputs and 2 outputs
-template Transaction(levels, zeroLeaf) {
+template Transaction(levels, nIns, nOuts, zeroLeaf) {
     signal input root;
     signal input newRoot;
-    signal input inputNullifier[2];
-    signal input outputCommitment[2];
+    signal input inputNullifier[nIns];
+    signal input outputCommitment[nOuts];
     // external amount used for deposits and withdrawals
     // correct extAmount range is enforced on the smart contract
     signal input extAmount;
     signal input fee;
     signal input extDataHash;
 
-    // data for 2 transaction inputs
-    signal private input inAmount[2];
-    signal private input inBlinding[2];
-    signal private input inPrivateKey[2];
-    signal private input inPathIndices[2];
-    signal private input inPathElements[2][levels];
+    // data for transaction inputs
+    signal private input inAmount[nIns];
+    signal private input inBlinding[nIns];
+    signal private input inPrivateKey[nIns];
+    signal private input inPathIndices[nIns];
+    signal private input inPathElements[nIns][levels];
 
-    // data for 2 transaction outputs
-    signal private input outAmount[2];
-    signal private input outBlinding[2];
-    signal private input outPubkey[2];
+    // data for transaction outputs
+    signal private input outAmount[nOuts];
+    signal private input outBlinding[nOuts];
+    signal private input outPubkey[nOuts];
     signal private input outPathIndices;
     signal private input outPathElements[levels - 1];
 
-    component inUtxoHasher[2];
-    component inKeypair[2];
-    component outUtxoHasher[2];
-    component nullifierHasher[2];
-    component checkRoot[2]
-    component tree[2];
-    component inAmountCheck[2];
-    component outAmountCheck[2];
+    component inKeypair[nIns];
+    component inUtxoHasher[nIns];
+    component nullifierHasher[nIns];
+    component inAmountCheck[nIns];
+    component tree[nIns];
+    component checkRoot[nIns];
+    var sumIns = 0;
 
     // verify correctness of transaction inputs
-    for (var tx = 0; tx < 2; tx++) {
+    for (var tx = 0; tx < nIns; tx++) {
         inKeypair[tx] = Keypair();
         inKeypair[tx].privateKey <== inPrivateKey[tx];
 
@@ -81,10 +80,16 @@ template Transaction(levels, zeroLeaf) {
         // Check that amount fits into 248 bits to prevent overflow
         inAmountCheck[tx] = Num2Bits(248);
         inAmountCheck[tx].in <== inAmount[tx];
+
+        sumIns += inAmount[tx];
     }
 
+    component outUtxoHasher[nOuts];
+    component outAmountCheck[nOuts];
+    var sumOuts = 0;
+
     // verify correctness of transaction outputs
-    for (var tx = 0; tx < 2; tx++) {
+    for (var tx = 0; tx < nOuts; tx++) {
         outUtxoHasher[tx] = TransactionHasher();
         outUtxoHasher[tx].amount <== outAmount[tx];
         outUtxoHasher[tx].blinding <== outBlinding[tx];
@@ -94,6 +99,8 @@ template Transaction(levels, zeroLeaf) {
         // Check that amount fits into 248 bits to prevent overflow
         outAmountCheck[tx] = Num2Bits(248);
         outAmountCheck[tx].in <== outAmount[tx];
+
+        sumOuts += outAmount[tx];
     }
 
     // Check that fee fits into 248 bits to prevent overflow
@@ -106,7 +113,7 @@ template Transaction(levels, zeroLeaf) {
     sameNullifiers.out === 0;
 
     // verify amount invariant
-    inAmount[0] + inAmount[1] + extAmount === outAmount[0] + outAmount[1] + fee;
+    sumIns + extAmount === sumOuts + fee;
 
     // Check merkle tree update with inserted transaction outputs
     component treeUpdater = TreeUpdater(levels, zeroLeaf);
@@ -119,7 +126,3 @@ template Transaction(levels, zeroLeaf) {
         treeUpdater.pathElements[i] <== outPathElements[i];
     }
 }
-
-// zeroLeaf = Poseidon(zero, zero)
-// default `zero` value is keccak256("tornado") % FIELD_SIZE = 21663839004416932945382355908790599225266501822907911457504978515578255421292
-component main = Transaction(5, 11850551329423159860688778991827824730037759162201783566284850822760196767874);
