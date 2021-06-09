@@ -1,43 +1,29 @@
 const { ethers } = require('hardhat')
 const { BigNumber } = ethers
 const { randomBN, poseidonHash } = require('./utils')
-
-function fromPrivkey(privkey) {
-  return {
-    privkey,
-    pubkey: poseidonHash([privkey]),
-  }
-}
+const Keypair = require('./kaypair')
 
 class Utxo {
-  constructor({ amount, pubkey, privkey, blinding, index } = {}) {
-    if (!pubkey) {
-      if (privkey) {
-        pubkey = fromPrivkey(privkey).pubkey
-      } else {
-        ;({ pubkey, privkey } = fromPrivkey(randomBN()))
-      }
-    }
-    this.amount = BigNumber.from(amount || 0)
-    this.blinding = blinding || randomBN()
-    this.pubkey = pubkey
-    this.privkey = privkey
+  constructor({ amount = 0, keypair = new Keypair(), blinding = randomBN(), index } = {}) {
+    this.amount = BigNumber.from(amount)
+    this.blinding = BigNumber.from(blinding)
+    this.keypair = keypair
     this.index = index
   }
 
   getCommitment() {
     if (!this._commitment) {
-      this._commitment = poseidonHash([this.amount, this.blinding, this.pubkey])
+      this._commitment = poseidonHash([this.amount, this.blinding, this.keypair.pubkey])
     }
     return this._commitment
   }
 
   getNullifier() {
     if (!this._nullifier) {
-      if (this.amount > 0 && (this.index === undefined || !this.privkey === undefined)) {
+      if (this.amount > 0 && (this.index === undefined || this.keypair.privkey === undefined || this.keypair.privkey === null)) {
         throw new Error('Can not compute nullifier without utxo index or private key')
       }
-      this._nullifier = poseidonHash([this.getCommitment(), this.index || 0, this.privkey || 0])
+      this._nullifier = poseidonHash([this.getCommitment(), this.index || 0, this.keypair.privkey || 0])
     }
     return this._nullifier
   }

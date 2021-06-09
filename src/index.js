@@ -66,7 +66,7 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
 
     // data for 2 transaction inputs
     inAmount: inputs.map((x) => x.amount),
-    inPrivateKey: inputs.map((x) => x.privkey),
+    inPrivateKey: inputs.map((x) => x.keypair.privkey),
     inBlinding: inputs.map((x) => x.blinding),
     inPathIndices: inputMerklePathIndices,
     inPathElements: inputMerklePathElements,
@@ -74,7 +74,7 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
     // data for 2 transaction outputs
     outAmount: outputs.map((x) => x.amount),
     outBlinding: outputs.map((x) => x.blinding),
-    outPubkey: outputs.map((x) => x.pubkey),
+    outPubkey: outputs.map((x) => x.keypair.pubkey),
     outPathIndices: outputIndex >> Math.log2(outputs.length),
     outPathElements: outputPath.slice(Math.log2(outputs.length)),
   }
@@ -130,7 +130,7 @@ async function transact({ tornadoPool, utxo }) {
   const inputs = [utxo, new Utxo()]
   const outputs = [
     new Utxo({ amount: utxo.amount / 4 }),
-    new Utxo({ amount: (utxo.amount * 3) / 4, privkey: utxo.privkey }),
+    new Utxo({ amount: (utxo.amount * 3) / 4, keypair: utxo.keypair }),
   ]
 
   const { proof, args } = await getProof({
