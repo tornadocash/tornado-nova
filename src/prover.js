@@ -1,4 +1,4 @@
-const { wtns } = require('snarkjs')
+const { wtns, groth16 } = require('snarkjs')
 const { utils } = require('ffjavascript')
 
 const fs = require('fs')
@@ -6,7 +6,22 @@ const tmp = require('tmp-promise')
 const util = require('util')
 const exec = util.promisify(require('child_process').exec)
 
-function prove(input, keyBasePath) {
+const { toFixedHex } = require('./utils')
+
+async function prove(input, keyBasePath) {
+  const {proof} = await groth16.fullProve(utils.stringifyBigInts(input), `${keyBasePath}.wasm`, `${keyBasePath}.zkey`);
+  return '0x' +
+    toFixedHex(proof.pi_a[0]).slice(2) +
+    toFixedHex(proof.pi_a[1]).slice(2) +
+    toFixedHex(proof.pi_b[0][1]).slice(2) +
+    toFixedHex(proof.pi_b[0][0]).slice(2) +
+    toFixedHex(proof.pi_b[1][1]).slice(2) +
+    toFixedHex(proof.pi_b[1][0]).slice(2) +
+    toFixedHex(proof.pi_c[0]).slice(2) +
+    toFixedHex(proof.pi_c[1]).slice(2)
+}
+
+function proveZkutil(input, keyBasePath) {
   input = utils.stringifyBigInts(input)
   // console.log('input', input)
   return tmp.dir().then(async (dir) => {
@@ -34,7 +49,7 @@ function prove(input, keyBasePath) {
       console.log(out, e)
       throw e
     }
-    return '0x' + JSON.parse(fs.readFileSync(`${dir}/proof.json`)).proof
+    return '0x' + JSON.parse(fs.readFileSync(`${dir}/proof.json`).toString()).proof
   })
 }
 

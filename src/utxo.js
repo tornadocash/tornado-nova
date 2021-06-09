@@ -34,7 +34,7 @@ class Utxo {
 
   getNullifier() {
     if (!this._nullifier) {
-      if (this.amount > 0 && (!this.index || !this.privkey)) {
+      if (this.amount > 0 && (this.index === undefined || !this.privkey === undefined)) {
         throw new Error('Can not compute nullifier without utxo index or private key')
       }
       this._nullifier = poseidonHash([this.getCommitment(), this.index || 0, this.privkey || 0])
