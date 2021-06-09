@@ -21,6 +21,7 @@
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin/contracts": "^3.4.0",
     "bignumber.js": "^9.0.0",
+    "chai": "^4.3.4",
     "circom": "^0.5.45",
     "circom_runtime": "^0.1.13",
     "circomlib": "git+https://github.com/tornadocash/circomlib.git#d20d53411d1bef61f38c99a8b36d5d0cc4836aa1",

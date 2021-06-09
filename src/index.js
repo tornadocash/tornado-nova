@@ -1,29 +1,27 @@
 /* eslint-disable no-console */
 const MerkleTree = require('fixed-merkle-tree')
-const Web3 = require('web3')
 const { ethers } = require('hardhat')
-const { BigNumber } = ethers
 const { toFixedHex, poseidonHash2, getExtDataHash, FIELD_SIZE } = require('./utils')
 const Utxo = require('./utxo')
 
-let contract, web3
 const { prove } = require('./prover')
 const MERKLE_TREE_HEIGHT = 5
-const RPC_URL = 'http://localhost:8545'
 
-async function buildMerkleTree() {
+async function buildMerkleTree({ tornadoPool }) {
   console.log('Getting contract state...')
-  const events = await contract.getPastEvents('NewCommitment', { fromBlock: 0, toBlock: 'latest' })
+  const filter = tornadoPool.filters.NewCommitment()
+  const events = await tornadoPool.queryFilter(filter, 0)
+
   const leaves = events
-    .sort((a, b) => a.returnValues.index - b.returnValues.index) // todo sort by event date
-    .map((e) => toFixedHex(e.returnValues.commitment))
+    .sort((a, b) => a.args.index - b.args.index) // todo sort by event date
+    .map((e) => toFixedHex(e.args.commitment))
   // console.log('leaves', leaves)
   return new MerkleTree(MERKLE_TREE_HEIGHT, leaves, { hashFunction: poseidonHash2 })
 }
 
 async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, relayer }) {
   // todo shuffle inputs and outputs
-  if (inputs.length !== 2 || outputs.length !== 2 ) {
+  if (inputs.length !== 2 || outputs.length !== 2) {
     throw new Error('Unsupported number of inputs/outputs')
   }
 
@@ -63,23 +61,23 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
   let input = {
     root: oldRoot,
     newRoot: tree.root(),
-    inputNullifier: inputs.map(x => x.getNullifier()),
-    outputCommitment: outputs.map(x => x.getCommitment()),
+    inputNullifier: inputs.map((x) => x.getNullifier()),
+    outputCommitment: outputs.map((x) => x.getCommitment()),
     extAmount,
     fee,
     extDataHash,
 
     // data for 2 transaction inputs
-    inAmount: inputs.map(x => x.amount),
-    inPrivateKey: inputs.map(x => x.privkey),
-    inBlinding: inputs.map(x => x.blinding),
+    inAmount: inputs.map((x) => x.amount),
+    inPrivateKey: inputs.map((x) => x.privkey),
+    inBlinding: inputs.map((x) => x.blinding),
     inPathIndices: inputMerklePathIndices,
     inPathElements: inputMerklePathElements,
 
     // data for 2 transaction outputs
-    outAmount: outputs.map(x => x.amount),
-    outBlinding: outputs.map(x => x.blinding),
-    outPubkey: outputs.map(x => x.pubkey),
+    outAmount: outputs.map((x) => x.amount),
+    outBlinding: outputs.map((x) => x.blinding),
+    outPubkey: outputs.map((x) => x.pubkey),
     outPathIndices: outputIndex >> 1,
     outPathElements: outputPath,
   }
@@ -92,8 +90,8 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
   const args = [
     toFixedHex(input.root),
     toFixedHex(input.newRoot),
-    inputs.map(x => toFixedHex(x.getNullifier())),
-    outputs.map(x => toFixedHex(x.getCommitment())),
+    inputs.map((x) => toFixedHex(x.getNullifier())),
+    outputs.map((x) => toFixedHex(x.getCommitment())),
     toFixedHex(extAmount),
     toFixedHex(fee),
     extData,
@@ -107,7 +105,7 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
   }
 }
 
-async function deposit() {
+async function deposit({ tornadoPool }) {
   const amount = 1e6
   const inputs = [new Utxo(), new Utxo()]
   const outputs = [new Utxo({ amount }), new Utxo()]
@@ -115,7 +113,7 @@ async function deposit() {
   const { proof, args } = await getProof({
     inputs,
     outputs,
-    tree: await buildMerkleTree(),
+    tree: await buildMerkleTree({ tornadoPool }),
     extAmount: amount,
     fee: 0,
     recipient: 0,
@@ -123,24 +121,25 @@ async function deposit() {
   })
 
   console.log('Sending deposit transaction...')
-  const receipt = await contract.methods
-    .transaction(proof, ...args)
-    .send({ value: amount, from: web3.eth.defaultAccount, gas: 1e6 })
-  console.log(`Receipt ${receipt.transactionHash}`)
+  const receipt = await tornadoPool.transaction(proof, ...args, {
+    value: amount,
+    gasLimit: 1e6,
+  })
+  console.log(`Receipt ${receipt.hash}`)
   return outputs[0]
 }
 
-async function transact(utxo) {
+async function transact({ tornadoPool, utxo }) {
   const inputs = [utxo, new Utxo()]
   const outputs = [
     new Utxo({ amount: utxo.amount / 4 }),
-    new Utxo({ amount: utxo.amount * 3 / 4, privkey: utxo.privkey}),
+    new Utxo({ amount: (utxo.amount * 3) / 4, privkey: utxo.privkey }),
   ]
 
   const { proof, args } = await getProof({
     inputs,
     outputs,
-    tree: await buildMerkleTree(),
+    tree: await buildMerkleTree({ tornadoPool }),
     extAmount: 0,
     fee: 0,
     recipient: 0,
@@ -148,49 +147,28 @@ async function transact(utxo) {
   })
 
   console.log('Sending transfer transaction...')
-  const receipt = await contract.methods
-    .transaction(proof, ...args)
-    .send({ from: web3.eth.defaultAccount, gas: 1e6 })
-  console.log(`Receipt ${receipt.transactionHash}`)
+  const receipt = await tornadoPool.transaction(proof, ...args, { gasLimit: 1e6 })
+  console.log(`Receipt ${receipt.hash}`)
   return outputs[0]
 }
 
-async function withdraw(utxo) {
+async function withdraw({ tornadoPool, utxo, recipient }) {
   const inputs = [utxo, new Utxo()]
   const outputs = [new Utxo(), new Utxo()]
 
   const { proof, args } = await getProof({
     inputs,
     outputs,
-    tree: await buildMerkleTree(),
+    tree: await buildMerkleTree({ tornadoPool }),
     extAmount: FIELD_SIZE.sub(utxo.amount),
     fee: 0,
-    recipient: '0xc2Ba33d4c0d2A92fb4f1a07C273c5d21E688Eb48',
+    recipient,
     relayer: 0,
   })
 
   console.log('Sending withdraw transaction...')
-  const receipt = await contract.methods
-    .transaction(proof, ...args)
-    .send({ from: web3.eth.defaultAccount, gas: 1e6 })
-  console.log(`Receipt ${receipt.transactionHash}`)
-
-  let bal = await web3.eth.getBalance('0xc2Ba33d4c0d2A92fb4f1a07C273c5d21E688Eb48')
-  console.log('balance', bal)
+  const receipt = await tornadoPool.transaction(proof, ...args, { gasLimit: 1e6 })
+  console.log(`Receipt ${receipt.hash}`)
 }
 
-async function main() {
-  web3 = new Web3(new Web3.providers.HttpProvider(RPC_URL, { timeout: 5 * 60 * 1000 }), null, {
-    transactionConfirmationBlocks: 1,
-  })
-  netId = await web3.eth.net.getId()
-  const contractData = require('../artifacts/contracts/TornadoPool.sol/TornadoPool.json')
-  contract = new web3.eth.Contract(contractData.abi, '0x0E801D84Fa97b50751Dbf25036d067dCf18858bF')
-  web3.eth.defaultAccount = (await web3.eth.getAccounts())[0]
-
-  const utxo1 = await deposit()
-  const utxo2 = await transact(utxo1)
-  await withdraw(utxo2)
-}
-
-main()
+module.exports = { deposit, withdraw, transact }

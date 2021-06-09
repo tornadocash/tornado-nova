@@ -10,19 +10,19 @@ function fromPrivkey(privkey) {
 }
 
 class Utxo {
-  constructor({amount, pubkey, privkey, blinding, index} = {}) {
+  constructor({ amount, pubkey, privkey, blinding, index } = {}) {
     if (!pubkey) {
       if (privkey) {
         pubkey = fromPrivkey(privkey).pubkey
       } else {
-        ({pubkey, privkey} = fromPrivkey(randomBN()))
+        ;({ pubkey, privkey } = fromPrivkey(randomBN()))
       }
     }
-    this.amount = BigNumber.from(amount || 0);
-    this.blinding = blinding || randomBN();
-    this.pubkey = pubkey;
-    this.privkey = privkey;
-    this.index = index;
+    this.amount = BigNumber.from(amount || 0)
+    this.blinding = blinding || randomBN()
+    this.pubkey = pubkey
+    this.privkey = privkey
+    this.index = index
   }
 
   getCommitment() {
