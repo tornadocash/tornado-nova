@@ -14,7 +14,7 @@ commitment = hash(amount, blinding, pubKey)
 nullifier = hash(commitment, privKey, merklePath)
 */
 
-// Universal JoinSplit transaction with 2 inputs and 2 outputs
+// Universal JoinSplit transaction with nIns inputs and 2 outputs
 template Transaction(levels, nIns, nOuts, zeroLeaf) {
     signal input root;
     signal input newRoot;
@@ -107,10 +107,18 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     component feeCheck = Num2Bits(248);
     feeCheck.in <== fee;
 
-    component sameNullifiers = IsEqual();
-    sameNullifiers.in[0] <== inputNullifier[0];
-    sameNullifiers.in[1] <== inputNullifier[1];
-    sameNullifiers.out === 0;
+    // check that there are no same nullifiers among all inputs
+    component sameNullifiers[nIns * (nIns - 1) / 2];
+    var index = 0;
+    for (var i = 0; i < nIns - 1; i++) {
+      for (var j = i + 1; j < nIns; j++) {
+          sameNullifiers[index] = IsEqual();
+          sameNullifiers[index].in[0] <== inputNullifier[i];
+          sameNullifiers[index].in[1] <== inputNullifier[j];
+          sameNullifiers[index].out === 0;
+          index++;
+      }
+    }
 
     // verify amount invariant
     sumIns + extAmount === sumOuts + fee;
@@ -119,8 +127,9 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     component treeUpdater = TreeUpdater(levels, zeroLeaf);
     treeUpdater.oldRoot <== root;
     treeUpdater.newRoot <== newRoot;
-    treeUpdater.leaf[0] <== outputCommitment[0];
-    treeUpdater.leaf[1] <== outputCommitment[1];
+    for (var i = 0; i < nOuts; i++) {
+      treeUpdater.leaf[i] <== outputCommitment[i];
+    }
     treeUpdater.pathIndices <== outPathIndices;
     for (var i = 0; i < levels - 1; i++) {
         treeUpdater.pathElements[i] <== outPathElements[i];

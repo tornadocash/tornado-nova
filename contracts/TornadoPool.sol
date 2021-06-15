@@ -17,6 +17,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol"; // todo: maybe remov
 
 interface IVerifier {
   function verifyProof(bytes memory _proof, uint256[9] memory _input) external returns(bool);
+  function verifyProof(bytes memory _proof, uint256[23] memory _input) external returns(bool);
 }
 
 contract TornadoPool is ReentrancyGuard {
@@ -26,7 +27,8 @@ contract TornadoPool is ReentrancyGuard {
   mapping(bytes32 => bool) public nullifierHashes;
   bytes32 public currentRoot;
   uint public currentCommitmentIndex;
-  IVerifier public verifier;
+  IVerifier public verifier2;
+  IVerifier public verifier16;
 
   struct ExtData {
     address payable recipient;
@@ -42,10 +44,12 @@ contract TornadoPool is ReentrancyGuard {
 
   /**
     @dev The constructor
-    @param _verifier the address of SNARK verifier for this contract
+    @param _verifier2 the address of SNARK verifier for this contract
+    @param _verifier16 the address of SNARK verifier for this contract
   */
-  constructor(IVerifier _verifier, bytes32 _currentRoot) public {
-    verifier = _verifier;
+  constructor(IVerifier _verifier2, IVerifier _verifier16, bytes32 _currentRoot) public {
+    verifier2 = _verifier2;
+    verifier16 = _verifier16;
     currentRoot = _currentRoot;
   }
 
@@ -66,7 +70,7 @@ contract TornadoPool is ReentrancyGuard {
     require(!isSpent(_inputNullifiers[0]), "Input 0 is already spent");
     require(!isSpent(_inputNullifiers[1]), "Input 1 is already spent");
     require(uint256(_extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
-    require(verifier.verifyProof(_proof, [
+    require(verifier2.verifyProof(_proof, [
       uint256(_root),
       uint256(_newRoot),
       uint256(_inputNullifiers[0]),

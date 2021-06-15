@@ -14,15 +14,19 @@ describe('TornadoPool', () => {
 
   /* prettier-ignore */
   before(async function () {
-    const Verifier = await ethers.getContractFactory('Verifier')
-    const verifier = await Verifier.deploy()
-    await verifier.deployed()
+    const Verifier2 = await ethers.getContractFactory('Verifier2')
+    const verifier2 = await Verifier2.deploy()
+    await verifier2.deployed()
+
+    const Verifier16 = await ethers.getContractFactory('Verifier16')
+    const verifier16 = await Verifier16.deploy()
+    await verifier16.deployed()
 
     const tree = new MerkleTree(MERKLE_TREE_HEIGHT, [], { hashFunction: poseidonHash2 })
     const root = await tree.root()
 
     const Pool = await ethers.getContractFactory('TornadoPool')
-    tornadoPool = await Pool.deploy(verifier.address, toFixedHex(root))
+    tornadoPool = await Pool.deploy(verifier2.address, verifier16.address, toFixedHex(root))
 
     snapshotId = await takeSnapshot()
   })

@@ -14,16 +14,21 @@ const toFixedHex = (number, length = 32) =>
   ).padStart(length * 2, '0')
 
 async function main() {
-  const Verifier = await ethers.getContractFactory('Verifier')
-  const verifier = await Verifier.deploy()
-  await verifier.deployed()
-  console.log(`verifier: ${verifier.address}`)
+  const Verifier2 = await ethers.getContractFactory('Verifier2')
+  const verifier2 = await Verifier2.deploy()
+  await verifier2.deployed()
+  console.log(`verifier2: ${verifier2.address}`)
+
+  const Verifier16 = await ethers.getContractFactory('Verifier16')
+  const verifier16 = await Verifier16.deploy()
+  await verifier16.deployed()
+  console.log(`verifier16: ${verifier16.address}`)
 
   const tree = new MerkleTree(MERKLE_TREE_HEIGHT, [], { hashFunction: poseidonHash2 })
   const root = await tree.root()
 
   const Pool = await ethers.getContractFactory('TornadoPool')
-  const tornado = await Pool.deploy(verifier.address, toFixedHex(root))
+  const tornado = await Pool.deploy(verifier2.address, verifier16.address, toFixedHex(root))
   console.log("TornadoPool's address ", tornado.address)
 }
 

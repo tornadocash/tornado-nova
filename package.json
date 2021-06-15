@@ -7,11 +7,10 @@
     "test": "test"
   },
   "scripts": {
-    "circuit": "./scripts/buildCircuit.sh transaction2 && ./scripts/buildCircuit.sh transaction16",
+    "circuit": "./scripts/buildCircuit.sh 2 && ./scripts/buildCircuit.sh 16",
     "compile": "npx hardhat compile",
     "build": "npm run circuit && npm run compile",
-    "migrate": "npx hardhat run scripts/deploy.js --network localhost",
-    "start": "node ./src/index.js"
+    "test": "npx hardhat test"
   },
   "keywords": [],
   "author": "",
@@ -32,7 +31,7 @@
     "ffjavascript": "^0.2.36",
     "fixed-merkle-tree": "^0.5.0",
     "hardhat": "^2.3.0",
-    "snarkjs": "^0.4.5",
+    "snarkjs": "git+https://github.com/tornadocash/snarkjs.git#c103e3bf10e95e2e9bbf0f7952ed13812f8e39d3",
     "tmp-promise": "^3.0.2"
   }
 }
