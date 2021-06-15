@@ -7,7 +7,7 @@ const { poseidonHash2, toFixedHex, takeSnapshot, revertSnapshot } = require('../
 const MERKLE_TREE_HEIGHT = 5
 const MerkleTree = require('fixed-merkle-tree')
 
-const { deposit, transact, withdraw } = require('../src/index')
+const { deposit, transact, withdraw, merge } = require('../src/index')
 
 describe('TornadoPool', () => {
   let snapshotId, tornadoPool
@@ -40,6 +40,10 @@ describe('TornadoPool', () => {
 
     let bal = await ethers.provider.getBalance(recipient)
     expect(bal).to.be.gt(0)
+  })
+
+  it('should work with 16 inputs', async function () {
+    const utxo1 = await merge({tornadoPool})
   })
 
   afterEach(async () => {

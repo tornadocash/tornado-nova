@@ -126,6 +126,30 @@ async function deposit({ tornadoPool }) {
   return outputs[0]
 }
 
+async function merge({ tornadoPool }) {
+  const amount = 1e6
+  const inputs = new Array(16).fill(0).map(_ => new Utxo())
+  const outputs = [new Utxo({ amount }), new Utxo()]
+
+  const { proof, args } = await getProof({
+    inputs,
+    outputs,
+    tree: await buildMerkleTree({ tornadoPool }),
+    extAmount: amount,
+    fee: 0,
+    recipient: 0,
+    relayer: 0,
+  })
+
+  console.log('Sending merge transaction...', proof, args)
+  const receipt = await tornadoPool.transaction(proof, ...args, {
+    value: amount,
+    gasLimit: 1e6,
+  })
+  console.log(`Receipt ${receipt.hash}`)
+  return outputs[0]
+}
+
 async function transact({ tornadoPool, utxo }) {
   const inputs = [utxo, new Utxo()]
   const outputs = [
@@ -168,4 +192,4 @@ async function withdraw({ tornadoPool, utxo, recipient }) {
   console.log(`Receipt ${receipt.hash}`)
 }
 
-module.exports = { deposit, withdraw, transact }
+module.exports = { deposit, withdraw, transact, merge }

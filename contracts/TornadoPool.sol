@@ -57,7 +57,7 @@ contract TornadoPool is ReentrancyGuard {
     bytes calldata _proof,
     bytes32 _root,
     bytes32 _newRoot,
-    bytes32[2] calldata _inputNullifiers,
+    bytes32[] calldata _inputNullifiers,
     bytes32[2] calldata _outputCommitments,
     uint256 _extAmount,
     uint256 _fee,
@@ -67,24 +67,56 @@ contract TornadoPool is ReentrancyGuard {
     external payable nonReentrant
   {
     require(currentRoot == _root, "Invalid merkle root");
-    require(!isSpent(_inputNullifiers[0]), "Input 0 is already spent");
-    require(!isSpent(_inputNullifiers[1]), "Input 1 is already spent");
+    for(uint256 i = 0; i < _inputNullifiers.length; i++) {
+      require(!isSpent(_inputNullifiers[i]), "Input is already spent");
+    }
     require(uint256(_extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
-    require(verifier2.verifyProof(_proof, [
-      uint256(_root),
-      uint256(_newRoot),
-      uint256(_inputNullifiers[0]),
-      uint256(_inputNullifiers[1]),
-      uint256(_outputCommitments[0]),
-      uint256(_outputCommitments[1]),
-      _extAmount,
-      _fee,
-      uint256(_extDataHash)
-    ]), "Invalid transaction proof");
+    if (_inputNullifiers.length == 2) {
+      require(verifier2.verifyProof(_proof, [
+        uint256(_root),
+        uint256(_newRoot),
+        uint256(_inputNullifiers[0]),
+        uint256(_inputNullifiers[1]),
+        uint256(_outputCommitments[0]),
+        uint256(_outputCommitments[1]),
+        _extAmount,
+        _fee,
+        uint256(_extDataHash)
+      ]), "Invalid transaction proof");
+    } else if (_inputNullifiers.length == 16) {
+      require(verifier16.verifyProof(_proof, [
+        uint256(_root),
+        uint256(_newRoot),
+        uint256(_inputNullifiers[0]),
+        uint256(_inputNullifiers[1]),
+        uint256(_inputNullifiers[2]),
+        uint256(_inputNullifiers[3]),
+        uint256(_inputNullifiers[4]),
+        uint256(_inputNullifiers[5]),
+        uint256(_inputNullifiers[6]),
+        uint256(_inputNullifiers[7]),
+        uint256(_inputNullifiers[8]),
+        uint256(_inputNullifiers[9]),
+        uint256(_inputNullifiers[10]),
+        uint256(_inputNullifiers[11]),
+        uint256(_inputNullifiers[12]),
+        uint256(_inputNullifiers[13]),
+        uint256(_inputNullifiers[14]),
+        uint256(_inputNullifiers[15]),
+        uint256(_outputCommitments[0]),
+        uint256(_outputCommitments[1]),
+        _extAmount,
+        _fee,
+        uint256(_extDataHash)
+        ]), "Invalid transaction proof");
+    } else {
+      revert("unsupported input count");
+    }
 
     currentRoot = _newRoot;
-    nullifierHashes[_inputNullifiers[0]] = true;
-    nullifierHashes[_inputNullifiers[1]] = true;
+    for(uint256 i = 0; i < _inputNullifiers.length; i++) {
+      nullifierHashes[_inputNullifiers[i]] = true;
+    }
 
     int256 extAmount = calculateExternalAmount(_extAmount);
     if (extAmount > 0) {
@@ -101,9 +133,9 @@ contract TornadoPool is ReentrancyGuard {
     // todo enforce currentCommitmentIndex value in snark
     emit NewCommitment(_outputCommitments[0], currentCommitmentIndex++, _extData.encryptedOutput1);
     emit NewCommitment(_outputCommitments[1], currentCommitmentIndex++, _extData.encryptedOutput2);
-    emit NewNullifier(_inputNullifiers[0]);
-    emit NewNullifier(_inputNullifiers[1]);
-    // emit Transaction();
+    for(uint256 i = 0; i < _inputNullifiers.length; i++) {
+      emit NewNullifier(_inputNullifiers[i]);
+    }
   }
 
   function calculateExternalAmount(uint256 _extAmount) public pure returns(int256) {
