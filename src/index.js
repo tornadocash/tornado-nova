@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 const MerkleTree = require('fixed-merkle-tree')
 const { ethers } = require('hardhat')
-const { toFixedHex, poseidonHash2, getExtDataHash, FIELD_SIZE } = require('./utils')
+const { toFixedHex, poseidonHash2, getExtDataHash, FIELD_SIZE, packEncryptedMessage } = require('./utils')
 const Utxo = require('./utxo')
 
 const { prove } = require('./prover')
@@ -29,7 +29,7 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
     if (input.amount > 0) {
       const index = tree.indexOf(toFixedHex(input.getCommitment()))
       if (index < 0) {
-        throw new Error(`Input commitment ${input.getCommitment()} was not found`)
+        throw new Error(`Input commitment ${toFixedHex(input.getCommitment())} was not found`)
       }
       inputMerklePathIndices.push(index)
       inputMerklePathElements.push(tree.path(index).pathElements)
@@ -52,8 +52,12 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
   const extData = {
     recipient: toFixedHex(recipient, 20),
     relayer: toFixedHex(relayer, 20),
-    encryptedOutput1: '0xff',
-    encryptedOutput2: '0xff',
+    encryptedOutput1: packEncryptedMessage(
+      outputs[0].keypair.encrypt({ blinding: outputs[0].blinding, amount: outputs[0].amount }),
+    ),
+    encryptedOutput2: packEncryptedMessage(
+      outputs[1].keypair.encrypt({ blinding: outputs[1].blinding, amount: outputs[1].amount }),
+    ),
   }
 
   const extDataHash = getExtDataHash(extData)
@@ -104,16 +108,15 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
   }
 }
 
-async function deposit({ tornadoPool }) {
-  const amount = 1e6
+async function deposit({ tornadoPool, utxo }) {
   const inputs = [new Utxo(), new Utxo()]
-  const outputs = [new Utxo({ amount }), new Utxo()]
+  const outputs = [utxo, new Utxo()]
 
   const { proof, args } = await getProof({
     inputs,
     outputs,
     tree: await buildMerkleTree({ tornadoPool }),
-    extAmount: amount,
+    extAmount: utxo.amount,
     fee: 0,
     recipient: 0,
     relayer: 0,
@@ -121,7 +124,7 @@ async function deposit({ tornadoPool }) {
 
   console.log('Sending deposit transaction...')
   const receipt = await tornadoPool.transaction(proof, ...args, {
-    value: amount,
+    value: utxo.amount,
     gasLimit: 1e6,
   })
   console.log(`Receipt ${receipt.hash}`)
@@ -130,7 +133,7 @@ async function deposit({ tornadoPool }) {
 
 async function merge({ tornadoPool }) {
   const amount = 1e6
-  const inputs = new Array(16).fill(0).map(_ => new Utxo())
+  const inputs = new Array(16).fill(0).map((_) => new Utxo())
   const outputs = [new Utxo({ amount }), new Utxo()]
 
   const { proof, args } = await getProof({
@@ -143,7 +146,6 @@ async function merge({ tornadoPool }) {
     relayer: 0,
   })
 
-  console.log('Sending merge transaction...', proof, args)
   const receipt = await tornadoPool.transaction(proof, ...args, {
     value: amount,
     gasLimit: 1e6,
@@ -152,12 +154,9 @@ async function merge({ tornadoPool }) {
   return outputs[0]
 }
 
-async function transact({ tornadoPool, utxo }) {
-  const inputs = [utxo, new Utxo()]
-  const outputs = [
-    new Utxo({ amount: utxo.amount / 4 }),
-    new Utxo({ amount: (utxo.amount * 3) / 4, keypair: utxo.keypair }),
-  ]
+async function transact({ tornadoPool, input, output }) {
+  const inputs = [input, new Utxo()]
+  const outputs = [output, new Utxo()]
 
   const { proof, args } = await getProof({
     inputs,
@@ -175,15 +174,15 @@ async function transact({ tornadoPool, utxo }) {
   return outputs[0]
 }
 
-async function withdraw({ tornadoPool, utxo, recipient }) {
-  const inputs = [utxo, new Utxo()]
-  const outputs = [new Utxo(), new Utxo()]
+async function withdraw({ tornadoPool, input, change, recipient }) {
+  const inputs = [input, new Utxo()]
+  const outputs = [change, new Utxo()]
 
   const { proof, args } = await getProof({
     inputs,
     outputs,
     tree: await buildMerkleTree({ tornadoPool }),
-    extAmount: FIELD_SIZE.sub(utxo.amount),
+    extAmount: FIELD_SIZE.sub(input.amount.sub(change.amount)),
     fee: 0,
     recipient,
     relayer: 0,
