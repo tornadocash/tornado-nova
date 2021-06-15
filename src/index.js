@@ -47,6 +47,8 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
   const outputIndex = tree.elements().length - 1
   const outputPath = tree.path(outputIndex).pathElements
 
+  //encrypt(encryptedPublicKey, { data }, 'x25519-xsalsa20-poly1305')
+
   const extData = {
     recipient: toFixedHex(recipient, 20),
     relayer: toFixedHex(relayer, 20),

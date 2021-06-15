@@ -8,6 +8,22 @@ const MERKLE_TREE_HEIGHT = 5
 const MerkleTree = require('fixed-merkle-tree')
 
 const { deposit, transact, withdraw, merge } = require('../src/index')
+const Keypair = require('../src/keypair')
+
+describe.only('Keypair', () => {
+  it('should work', () => {
+    const blinding = 3
+    const amount = 5
+    const keypair = new Keypair()
+
+    const cyphertext = keypair.encrypt({ blinding, amount})
+    console.log(cyphertext)
+    const result = keypair.decrypt(cyphertext)
+    console.log(result, result.blinding.toString())
+    expect(result.blinding).to.be.equal(blinding)
+    expect(result.amount).to.be.equal(amount)
+  })
+})
 
 describe('TornadoPool', () => {
   let snapshotId, tornadoPool

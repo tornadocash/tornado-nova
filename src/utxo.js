@@ -1,7 +1,7 @@
 const { ethers } = require('hardhat')
 const { BigNumber } = ethers
 const { randomBN, poseidonHash } = require('./utils')
-const Keypair = require('./kaypair')
+const Keypair = require('./keypair')
 
 class Utxo {
   constructor({ amount = 0, keypair = new Keypair(), blinding = randomBN(), index } = {}) {

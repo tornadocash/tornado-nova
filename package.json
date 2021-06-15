@@ -25,6 +25,7 @@
     "circom_runtime": "^0.1.13",
     "circomlib": "git+https://github.com/tornadocash/circomlib.git#d20d53411d1bef61f38c99a8b36d5d0cc4836aa1",
     "dotenv": "^10.0.0",
+    "eth-sig-util": "^3.0.1",
     "ethereum-waffle": "^3.2.0",
     "ethers": "^5.0.0",
     "ffiasm": "^0.1.3",
