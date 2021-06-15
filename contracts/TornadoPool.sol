@@ -121,9 +121,12 @@ contract TornadoPool is ReentrancyGuard {
     int256 extAmount = calculateExternalAmount(_extAmount);
     if (extAmount > 0) {
       require(msg.value == uint256(extAmount), "Incorrect amount of ETH sent on deposit");
-    } else {
+    } else if (extAmount < 0) {
       require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
+      require(_extData.recipient != address(0), "Can't withdraw to zero address");
       _extData.recipient.transfer(uint256(-extAmount));
+    } else {
+      require(msg.value == 0, "Sent ETH amount should be 0 for transaction");
     }
 
     if (_fee > 0) {
