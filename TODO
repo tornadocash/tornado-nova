@@ -1,12 +1,7 @@
-* utxo data encryption for recipient as for mining
-  - combine privkey hash and ethereum public key = address
-* outputs merging (second snark with 32 inputs) (poma)
-* wasmsnark (poma)
 * relayer
-
 * design
 * race condition ? (sequencer or something)
-* the current trusted setup is not secure
+* the current trusted setup is not secure ?
 
 How we do transaction inside pool of A amount.
 1. sort inputs by amount
