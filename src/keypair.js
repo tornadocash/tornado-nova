@@ -1,8 +1,37 @@
 const { encrypt, decrypt, getEncryptionPublicKey } = require('eth-sig-util')
 const { ethers } = require('hardhat')
 const { BigNumber } = ethers
-const { randomBN, poseidonHash, toFixedHex } = require('./utils')
-const BNjs = require('bn.js')
+const { poseidonHash, toFixedHex } = require('./utils')
+
+function packEncryptedMessage(encryptedMessage) {
+  const nonceBuf = Buffer.from(encryptedMessage.nonce, 'base64')
+  const ephemPublicKeyBuf = Buffer.from(encryptedMessage.ephemPublicKey, 'base64')
+  const ciphertextBuf = Buffer.from(encryptedMessage.ciphertext, 'base64')
+  const messageBuff = Buffer.concat([
+    Buffer.alloc(24 - nonceBuf.length),
+    nonceBuf,
+    Buffer.alloc(32 - ephemPublicKeyBuf.length),
+    ephemPublicKeyBuf,
+    ciphertextBuf,
+  ])
+  return '0x' + messageBuff.toString('hex')
+}
+
+function unpackEncryptedMessage(encryptedMessage) {
+  if (encryptedMessage.slice(0, 2) === '0x') {
+    encryptedMessage = encryptedMessage.slice(2)
+  }
+  const messageBuff = Buffer.from(encryptedMessage, 'hex')
+  const nonceBuf = messageBuff.slice(0, 24)
+  const ephemPublicKeyBuf = messageBuff.slice(24, 56)
+  const ciphertextBuf = messageBuff.slice(56)
+  return {
+    version: 'x25519-xsalsa20-poly1305',
+    nonce: nonceBuf.toString('base64'),
+    ephemPublicKey: ephemPublicKeyBuf.toString('base64'),
+    ciphertext: ciphertextBuf.toString('base64'),
+  }
+}
 
 class Keypair {
   constructor(privkey = ethers.Wallet.createRandom().privateKey) {
@@ -33,21 +62,12 @@ class Keypair {
     })
   }
 
-  encrypt({ blinding, amount }) {
-    const bytes = Buffer.concat([
-      new BNjs(blinding.toString()).toBuffer('be', 31),
-      new BNjs(amount.toString()).toBuffer('be', 31),
-    ])
-    return encrypt(this.encryptionKey, { data: bytes.toString('base64') }, 'x25519-xsalsa20-poly1305')
+  encrypt(bytes) {
+    return packEncryptedMessage(encrypt(this.encryptionKey, { data: bytes.toString('base64') }, 'x25519-xsalsa20-poly1305'))
   }
 
   decrypt(data) {
-    const decryptedMessage = decrypt(data, this.privkey.slice(2))
-    const buf = Buffer.from(decryptedMessage, 'base64')
-    return {
-      blinding: BigNumber.from('0x' + buf.slice(0, 31).toString('hex')),
-      amount: BigNumber.from('0x' + buf.slice(31, 62).toString('hex')),
-    }
+    return Buffer.from(decrypt(unpackEncryptedMessage(data), this.privkey.slice(2)), 'base64')
   }
 }
 

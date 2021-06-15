@@ -16,7 +16,7 @@ const Utxo = require('../src/utxo')
 const MERKLE_TREE_HEIGHT = 5
 const MerkleTree = require('fixed-merkle-tree')
 
-const { deposit, transact, withdraw, merge } = require('../src/index')
+const { transaction } = require('../src/index')
 const Keypair = require('../src/keypair')
 
 describe('TornadoPool', () => {
@@ -41,89 +41,50 @@ describe('TornadoPool', () => {
     snapshotId = await takeSnapshot()
   })
 
-  it('encryp -> pack -> unpack -> decrypt should work', () => {
-    const blinding = 3
-    const amount = 5
+  it('encrypt -> decrypt should work', () => {
+    const data = Buffer.from([0xff, 0xaa, 0x00, 0x01])
     const keypair = new Keypair()
 
-    const cyphertext = keypair.encrypt({ blinding, amount })
-
-    const packedMessage = packEncryptedMessage(cyphertext)
-
-    const unpackedMessage = unpackEncryptedMessage(packedMessage)
-
-    const result = keypair.decrypt(unpackedMessage)
-
-    expect(result.blinding).to.be.equal(blinding)
-    expect(result.amount).to.be.equal(amount)
+    const ciphertext = keypair.encrypt(data)
+    const result = keypair.decrypt(ciphertext)
+    expect(result).to.be.deep.equal(data)
   })
 
   it('should deposit, transact and withdraw', async function () {
-    /// deposit phase
     // Alice deposits into tornado pool
-    const amount = BigNumber.from('10000000')
-    const alicePrivateKey = ethers.Wallet.createRandom().privateKey // the private key we use for snarks and encryption, not for transactions
-    const aliceKeypair = new Keypair(alicePrivateKey)
+    const aliceDepositAmount = 1e7
+    const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount })
+    await transaction({ tornadoPool, outputs: [aliceDepositUtxo] })
 
-    const depositInput = new Utxo({ amount, keypair: aliceKeypair })
-    await deposit({ tornadoPool, utxo: depositInput })
-
-    // getting account data from chain to verify that Alice has an Input to spend now
-    const filter = tornadoPool.filters.NewCommitment()
-    let events = await tornadoPool.queryFilter(filter)
-    let unpackedMessage = unpackEncryptedMessage(events[0].args.encryptedOutput)
-    let decryptedMessage = aliceKeypair.decrypt(unpackedMessage)
-    let aliceInputIndex = events[0].args.index
-    expect(decryptedMessage.amount).to.be.equal(amount)
-    expect(decryptedMessage.blinding).to.be.equal(depositInput.blinding)
-
-    /// transact phase.
-    // Bob gives Alice address to send some eth inside pool
-    const bobPrivateKey = ethers.Wallet.createRandom().privateKey
-    const bobKeypair = new Keypair(bobPrivateKey)
+    // Bob gives Alice address to send some eth inside the shielded pool
+    const bobKeypair = new Keypair()
     const bobAddress = bobKeypair.address()
 
-    // but alice does not have Bob's privkey so let's build keypair without it
-    const bobKeypairForEncryption = Keypair.fromString(bobAddress)
+    // Alice sends some funds to Bob
+    const bobSendAmount = 3e6
+    const bobSendUtxo = new Utxo({ amount: bobSendAmount, keypair: Keypair.fromString(bobAddress) })
+    const aliceChangeUtxo = new Utxo({ amount: aliceDepositAmount - bobSendAmount, keypair: aliceDepositUtxo.keypair })
+    await transaction({ tornadoPool, inputs: [aliceDepositUtxo], outputs: [bobSendUtxo, aliceChangeUtxo] })
 
-    // let's build input for the shielded transaction
-    const aliceInput = new Utxo({
-      amount,
-      blinding: depositInput.blinding,
-      index: aliceInputIndex,
-      keypair: aliceKeypair,
-    })
-    const bobInput = new Utxo({ amount, keypair: bobKeypairForEncryption })
-
-    await transact({ tornadoPool, input: aliceInput, output: bobInput })
-
-    // getting account data from chain to verify that Bob has an Input to spend now
+    // Bob parses chain to detect incoming funds
+    const filter = tornadoPool.filters.NewCommitment()
     const fromBlock = await ethers.provider.getBlock()
-    events = await tornadoPool.queryFilter(filter, fromBlock.number)
-    const bobInputIndex = events[0].args.index
-    unpackedMessage = unpackEncryptedMessage(events[0].args.encryptedOutput)
-    decryptedMessage = bobKeypair.decrypt(unpackedMessage)
-    expect(decryptedMessage.amount).to.be.equal(amount)
-    expect(decryptedMessage.blinding).to.be.equal(bobInput.blinding)
+    const events = await tornadoPool.queryFilter(filter, fromBlock.number)
+    const bobReceiveUtxo = Utxo.decrypt(bobKeypair, events[0].args.encryptedOutput, events[0].args.index)
+    expect(bobReceiveUtxo.amount).to.be.equal(bobSendAmount)
 
-    /// withdraw phase
-    // now Bob wants to exit the pool using a half of its funds
-    const bobInputForWithdraw = new Utxo({
-      amount,
-      blinding: bobInput.blinding,
-      index: bobInputIndex,
-      keypair: bobKeypair,
-    })
-    const bobChange = new Utxo({ amount: amount.div(2), keypair: bobKeypair })
-    const recipient = '0xc2Ba33d4c0d2A92fb4f1a07C273c5d21E688Eb48'
-    await withdraw({ tornadoPool, input: bobInputForWithdraw, change: bobChange, recipient })
+    // Bob withdraws part of his funds from the shielded pool
+    const bobWithdrawAmount = 2e6
+    const bobEthAddress = '0xDeaD00000000000000000000000000000000BEEf'
+    const bobChangeUtxo = new Utxo({ amount: bobSendAmount - bobWithdrawAmount, keypair: bobKeypair })
+    await transaction({ tornadoPool, inputs: [bobReceiveUtxo], outputs: [bobChangeUtxo], recipient: bobEthAddress })
 
-    const bal = await ethers.provider.getBalance(recipient)
-    expect(bal).to.be.gt(0)
+    const bobBalance = await ethers.provider.getBalance(bobEthAddress)
+    expect(bobBalance).to.be.equal(bobWithdrawAmount)
   })
 
   it('should work with 16 inputs', async function () {
-    const utxo1 = await merge({ tornadoPool })
+    await transaction({ tornadoPool, inputs: [new Utxo(), new Utxo(), new Utxo()] })
   })
 
   afterEach(async () => {

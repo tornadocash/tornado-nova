@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 const MerkleTree = require('fixed-merkle-tree')
 const { ethers } = require('hardhat')
+const { BigNumber } = ethers
 const { toFixedHex, poseidonHash2, getExtDataHash, FIELD_SIZE, packEncryptedMessage } = require('./utils')
 const Utxo = require('./utxo')
 
@@ -52,12 +53,8 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
   const extData = {
     recipient: toFixedHex(recipient, 20),
     relayer: toFixedHex(relayer, 20),
-    encryptedOutput1: packEncryptedMessage(
-      outputs[0].keypair.encrypt({ blinding: outputs[0].blinding, amount: outputs[0].amount }),
-    ),
-    encryptedOutput2: packEncryptedMessage(
-      outputs[1].keypair.encrypt({ blinding: outputs[1].blinding, amount: outputs[1].amount }),
-    ),
+    encryptedOutput1: outputs[0].encrypt(),
+    encryptedOutput2: outputs[1].encrypt(),
   }
 
   const extDataHash = getExtDataHash(extData)
@@ -108,89 +105,41 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
   }
 }
 
-async function deposit({ tornadoPool, utxo }) {
-  const inputs = [new Utxo(), new Utxo()]
-  const outputs = [utxo, new Utxo()]
+async function transaction({ tornadoPool, inputs = [], outputs = [], fee = 0, recipient = 0, relayer = 0 }) {
+  if (inputs.length > 16 || outputs.length > 2) {
+    throw new Error('Incorrect inputs/outputs count')
+  }
+  while(inputs.length !== 2 && inputs.length < 16) {
+    inputs.push(new Utxo())
+  }
+  while(outputs.length < 2) {
+    outputs.push(new Utxo())
+  }
+
+  let extAmount = BigNumber.from(fee)
+    .add(outputs.reduce((sum, x) => sum.add(x.amount), BigNumber.from(0)))
+    .sub(inputs.reduce((sum, x) => sum.add(x.amount), BigNumber.from(0)))
+  const amount = extAmount > 0 ? extAmount : 0
+  if (extAmount < 0) {
+    extAmount = FIELD_SIZE.add(extAmount)
+  }
 
   const { proof, args } = await getProof({
     inputs,
     outputs,
     tree: await buildMerkleTree({ tornadoPool }),
-    extAmount: utxo.amount,
-    fee: 0,
-    recipient: 0,
-    relayer: 0,
+    extAmount,
+    fee,
+    recipient,
+    relayer,
   })
 
-  console.log('Sending deposit transaction...')
-  const receipt = await tornadoPool.transaction(proof, ...args, {
-    value: utxo.amount,
-    gasLimit: 1e6,
-  })
-  console.log(`Receipt ${receipt.hash}`)
-  return outputs[0]
-}
-
-async function merge({ tornadoPool }) {
-  const amount = 1e6
-  const inputs = new Array(16).fill(0).map((_) => new Utxo())
-  const outputs = [new Utxo({ amount }), new Utxo()]
-
-  const { proof, args } = await getProof({
-    inputs,
-    outputs,
-    tree: await buildMerkleTree({ tornadoPool }),
-    extAmount: amount,
-    fee: 0,
-    recipient: 0,
-    relayer: 0,
-  })
-
+  console.log('Sending transaction...')
   const receipt = await tornadoPool.transaction(proof, ...args, {
     value: amount,
     gasLimit: 1e6,
   })
   console.log(`Receipt ${receipt.hash}`)
-  return outputs[0]
 }
 
-async function transact({ tornadoPool, input, output }) {
-  const inputs = [input, new Utxo()]
-  const outputs = [output, new Utxo()]
-
-  const { proof, args } = await getProof({
-    inputs,
-    outputs,
-    tree: await buildMerkleTree({ tornadoPool }),
-    extAmount: 0,
-    fee: 0,
-    recipient: 0,
-    relayer: 0,
-  })
-
-  console.log('Sending transfer transaction...')
-  const receipt = await tornadoPool.transaction(proof, ...args, { gasLimit: 1e6 })
-  console.log(`Receipt ${receipt.hash}`)
-  return outputs[0]
-}
-
-async function withdraw({ tornadoPool, input, change, recipient }) {
-  const inputs = [input, new Utxo()]
-  const outputs = [change, new Utxo()]
-
-  const { proof, args } = await getProof({
-    inputs,
-    outputs,
-    tree: await buildMerkleTree({ tornadoPool }),
-    extAmount: FIELD_SIZE.sub(input.amount.sub(change.amount)),
-    fee: 0,
-    recipient,
-    relayer: 0,
-  })
-
-  console.log('Sending withdraw transaction...')
-  const receipt = await tornadoPool.transaction(proof, ...args, { gasLimit: 1e6 })
-  console.log(`Receipt ${receipt.hash}`)
-}
-
-module.exports = { deposit, withdraw, transact, merge }
+module.exports = { transaction }

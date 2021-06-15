@@ -27,6 +27,28 @@ class Utxo {
     }
     return this._nullifier
   }
+
+  encrypt() {
+    const blindingBuf = Buffer.from(this.blinding.toHexString().slice(2), 'hex')
+    const amountBuf = Buffer.from(this.amount.toHexString().slice(2), 'hex')
+    const bytes = Buffer.concat([
+      Buffer.alloc(31 - blindingBuf.length),
+      blindingBuf,
+      Buffer.alloc(31 - amountBuf.length),
+      amountBuf,
+    ])
+    return this.keypair.encrypt(bytes)
+  }
+
+  static decrypt(keypair, data, index) {
+    const buf = keypair.decrypt(data)
+    return new Utxo({
+      blinding: BigNumber.from('0x' + buf.slice(0, 31).toString('hex')),
+      amount: BigNumber.from('0x' + buf.slice(31, 62).toString('hex')),
+      keypair,
+      index,
+    })
+  }
 }
 
 module.exports = Utxo
