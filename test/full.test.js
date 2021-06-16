@@ -68,7 +68,7 @@ describe('TornadoPool', () => {
     const bobReceiveUtxo = Utxo.decrypt(bobKeypair, events[0].args.encryptedOutput, events[0].args.index)
     expect(bobReceiveUtxo.amount).to.be.equal(bobSendAmount)
 
-    // Bob withdraws part of his funds from the shielded pool
+    // Bob withdraws a part of his funds from the shielded pool
     const bobWithdrawAmount = 2e6
     const bobEthAddress = '0xDeaD00000000000000000000000000000000BEEf'
     const bobChangeUtxo = new Utxo({ amount: bobSendAmount - bobWithdrawAmount, keypair: bobKeypair })

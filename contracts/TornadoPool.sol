@@ -16,9 +16,9 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol"; // todo: maybe remove?
 
 interface IVerifier {
-  function verifyProof(bytes memory _proof, uint256[9] memory _input) external returns (bool);
+  function verifyProof(bytes memory _proof, uint256[9] memory _input) external view returns (bool);
 
-  function verifyProof(bytes memory _proof, uint256[23] memory _input) external returns (bool);
+  function verifyProof(bytes memory _proof, uint256[23] memory _input) external view returns (bool);
 }
 
 contract TornadoPool is ReentrancyGuard {
@@ -38,15 +38,13 @@ contract TornadoPool is ReentrancyGuard {
     bytes encryptedOutput2;
   }
 
-  // todo: event Transaction();
   event NewCommitment(bytes32 commitment, uint256 index, bytes encryptedOutput);
   event NewNullifier(bytes32 nullifier);
-  event Withdraw(bytes32 indexed nullifier); // todo emit it on withdraw so we can easily find the withdraw tx for user on UI
 
   /**
     @dev The constructor
-    @param _verifier2 the address of SNARK verifier for this contract
-    @param _verifier16 the address of SNARK verifier for this contract
+    @param _verifier2 the address of SNARK verifier for 2 inputs
+    @param _verifier16 the address of SNARK verifier for 16 inputs
   */
   constructor(
     IVerifier _verifier2,
@@ -74,59 +72,10 @@ contract TornadoPool is ReentrancyGuard {
       require(!isSpent(_inputNullifiers[i]), "Input is already spent");
     }
     require(uint256(_extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
-    if (_inputNullifiers.length == 2) {
-      require(
-        verifier2.verifyProof(
-          _proof,
-          [
-            uint256(_root),
-            uint256(_newRoot),
-            uint256(_inputNullifiers[0]),
-            uint256(_inputNullifiers[1]),
-            uint256(_outputCommitments[0]),
-            uint256(_outputCommitments[1]),
-            _extAmount,
-            _fee,
-            uint256(_extDataHash)
-          ]
-        ),
-        "Invalid transaction proof"
-      );
-    } else if (_inputNullifiers.length == 16) {
-      require(
-        verifier16.verifyProof(
-          _proof,
-          [
-            uint256(_root),
-            uint256(_newRoot),
-            uint256(_inputNullifiers[0]),
-            uint256(_inputNullifiers[1]),
-            uint256(_inputNullifiers[2]),
-            uint256(_inputNullifiers[3]),
-            uint256(_inputNullifiers[4]),
-            uint256(_inputNullifiers[5]),
-            uint256(_inputNullifiers[6]),
-            uint256(_inputNullifiers[7]),
-            uint256(_inputNullifiers[8]),
-            uint256(_inputNullifiers[9]),
-            uint256(_inputNullifiers[10]),
-            uint256(_inputNullifiers[11]),
-            uint256(_inputNullifiers[12]),
-            uint256(_inputNullifiers[13]),
-            uint256(_inputNullifiers[14]),
-            uint256(_inputNullifiers[15]),
-            uint256(_outputCommitments[0]),
-            uint256(_outputCommitments[1]),
-            _extAmount,
-            _fee,
-            uint256(_extDataHash)
-          ]
-        ),
-        "Invalid transaction proof"
-      );
-    } else {
-      revert("unsupported input count");
-    }
+    require(
+      verifyProof(_proof, _root, _newRoot, _inputNullifiers, _outputCommitments, _extAmount, _fee, _extDataHash),
+      "Invalid transaction proof"
+    );
 
     currentRoot = _newRoot;
     for (uint256 i = 0; i < _inputNullifiers.length; i++) {
@@ -171,5 +120,66 @@ contract TornadoPool is ReentrancyGuard {
   /** @dev whether a note is already spent */
   function isSpent(bytes32 _nullifierHash) public view returns (bool) {
     return nullifierHashes[_nullifierHash];
+  }
+
+  function verifyProof(
+    bytes memory _proof,
+    bytes32 _root,
+    bytes32 _newRoot,
+    bytes32[] memory _inputNullifiers,
+    bytes32[2] memory _outputCommitments,
+    uint256 _extAmount,
+    uint256 _fee,
+    bytes32 _extDataHash
+  ) public view returns (bool) {
+    if (_inputNullifiers.length == 2) {
+      return
+        verifier2.verifyProof(
+          _proof,
+          [
+            uint256(_root),
+            uint256(_newRoot),
+            uint256(_inputNullifiers[0]),
+            uint256(_inputNullifiers[1]),
+            uint256(_outputCommitments[0]),
+            uint256(_outputCommitments[1]),
+            _extAmount,
+            _fee,
+            uint256(_extDataHash)
+          ]
+        );
+    } else if (_inputNullifiers.length == 16) {
+      return
+        verifier16.verifyProof(
+          _proof,
+          [
+            uint256(_root),
+            uint256(_newRoot),
+            uint256(_inputNullifiers[0]),
+            uint256(_inputNullifiers[1]),
+            uint256(_inputNullifiers[2]),
+            uint256(_inputNullifiers[3]),
+            uint256(_inputNullifiers[4]),
+            uint256(_inputNullifiers[5]),
+            uint256(_inputNullifiers[6]),
+            uint256(_inputNullifiers[7]),
+            uint256(_inputNullifiers[8]),
+            uint256(_inputNullifiers[9]),
+            uint256(_inputNullifiers[10]),
+            uint256(_inputNullifiers[11]),
+            uint256(_inputNullifiers[12]),
+            uint256(_inputNullifiers[13]),
+            uint256(_inputNullifiers[14]),
+            uint256(_inputNullifiers[15]),
+            uint256(_outputCommitments[0]),
+            uint256(_outputCommitments[1]),
+            _extAmount,
+            _fee,
+            uint256(_extDataHash)
+          ]
+        );
+    } else {
+      revert("unsupported input count");
+    }
   }
 }

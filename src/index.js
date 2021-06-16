@@ -9,7 +9,6 @@ const { prove } = require('./prover')
 const MERKLE_TREE_HEIGHT = 5
 
 async function buildMerkleTree({ tornadoPool }) {
-  console.log('Getting contract state...')
   const filter = tornadoPool.filters.NewCommitment()
   const events = await tornadoPool.queryFilter(filter, 0)
 
@@ -48,8 +47,6 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
   const outputIndex = tree.elements().length - 1
   const outputPath = tree.path(outputIndex).pathElements
 
-  //encrypt(encryptedPublicKey, { data }, 'x25519-xsalsa20-poly1305')
-
   const extData = {
     recipient: toFixedHex(recipient, 20),
     relayer: toFixedHex(relayer, 20),
@@ -82,9 +79,6 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
     outPathElements: outputPath.slice(Math.log2(outputs.length)),
   }
 
-  //console.log('SNARK input', input)
-
-  console.log('Generating SNARK proof...')
   const proof = await prove(input, `./artifacts/circuits/transaction${inputs.length}`)
 
   const args = [
@@ -119,7 +113,8 @@ async function transaction({ tornadoPool, inputs = [], outputs = [], fee = 0, re
   let extAmount = BigNumber.from(fee)
     .add(outputs.reduce((sum, x) => sum.add(x.amount), BigNumber.from(0)))
     .sub(inputs.reduce((sum, x) => sum.add(x.amount), BigNumber.from(0)))
-  const amount = extAmount > 0 ? extAmount : 0
+
+  const amount = extAmount > 0 ? extAmount : 0 // extAmount will be positive for a deposit, zero for a transact and negative for withdraw
   if (extAmount < 0) {
     extAmount = FIELD_SIZE.add(extAmount)
   }
@@ -134,12 +129,12 @@ async function transaction({ tornadoPool, inputs = [], outputs = [], fee = 0, re
     relayer,
   })
 
-  console.log('Sending transaction...')
   const receipt = await tornadoPool.transaction(proof, ...args, {
     value: amount,
     gasLimit: 1e6,
   })
-  console.log(`Receipt ${receipt.hash}`)
+  const { gasUsed } = await receipt.wait()
+  // console.log(`Gas Used ${gasUsed}`)
 }
 
 module.exports = { transaction }

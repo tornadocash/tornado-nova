@@ -4,7 +4,7 @@ const { randomBN, poseidonHash, toBuffer } = require('./utils')
 const Keypair = require('./keypair')
 
 class Utxo {
-  /**
+  /** Initialize a new UTXO - unspent transaction output or input. Note, a full TX consists of 2/16 inputs and 2 outputs
    *
    * @param {BigNumber | BigInt | number | string} amount UTXO amount
    * @param {BigNumber | BigInt | number | string} blinding Blinding factor
