@@ -85,7 +85,9 @@ class Keypair {
    * @returns {string} a hex string with encrypted data
    */
   encrypt(bytes) {
-    return packEncryptedMessage(encrypt(this.encryptionKey, { data: bytes.toString('base64') }, 'x25519-xsalsa20-poly1305'))
+    return packEncryptedMessage(
+      encrypt(this.encryptionKey, { data: bytes.toString('base64') }, 'x25519-xsalsa20-poly1305'),
+    )
   }
 
   /**

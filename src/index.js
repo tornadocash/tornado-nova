@@ -2,7 +2,7 @@
 const MerkleTree = require('fixed-merkle-tree')
 const { ethers } = require('hardhat')
 const { BigNumber } = ethers
-const { toFixedHex, poseidonHash2, getExtDataHash, FIELD_SIZE, packEncryptedMessage } = require('./utils')
+const { toFixedHex, poseidonHash2, getExtDataHash, FIELD_SIZE } = require('./utils')
 const Utxo = require('./utxo')
 
 const { prove } = require('./prover')
@@ -109,10 +109,10 @@ async function transaction({ tornadoPool, inputs = [], outputs = [], fee = 0, re
   if (inputs.length > 16 || outputs.length > 2) {
     throw new Error('Incorrect inputs/outputs count')
   }
-  while(inputs.length !== 2 && inputs.length < 16) {
+  while (inputs.length !== 2 && inputs.length < 16) {
     inputs.push(new Utxo())
   }
-  while(outputs.length < 2) {
+  while (outputs.length < 2) {
     outputs.push(new Utxo())
   }
 

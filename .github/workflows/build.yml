@@ -1,0 +1,30 @@
+name: build
+
+on:
+  push:
+    branches: ['*']
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 14
+      - run: yarn install
+      - run: yarn lint
+# build is disabled until it's made non-interactive
+#      - run: yarn build
+#      - run: yarn test
+#      - name: Telegram Failure Notification
+#        uses: appleboy/telegram-action@0.0.7
+#        if: failure()
+#        with:
+#          message: ❗ Build failed for [${{ github.repository }}](https://github.com/${{ github.repository }}/actions) because of ${{ github.actor }}
+#          format: markdown
+#          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+#          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}

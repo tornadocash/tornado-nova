@@ -1,14 +1,8 @@
 /* global ethers */
 const { expect, should } = require('chai')
 should()
-const { BigNumber } = ethers
 
-const {
-  poseidonHash2,
-  toFixedHex,
-  takeSnapshot,
-  revertSnapshot,
-} = require('../src/utils')
+const { poseidonHash2, toFixedHex, takeSnapshot, revertSnapshot } = require('../src/utils')
 const Utxo = require('../src/utxo')
 
 const MERKLE_TREE_HEIGHT = 5
@@ -55,13 +49,16 @@ describe('TornadoPool', () => {
     await transaction({ tornadoPool, outputs: [aliceDepositUtxo] })
 
     // Bob gives Alice address to send some eth inside the shielded pool
-    const bobKeypair = new Keypair()
-    const bobAddress = bobKeypair.address()
+    const bobKeypair = new Keypair() // contains private and public keys
+    const bobAddress = bobKeypair.address() // contains only public key
 
     // Alice sends some funds to Bob
     const bobSendAmount = 3e6
     const bobSendUtxo = new Utxo({ amount: bobSendAmount, keypair: Keypair.fromString(bobAddress) })
-    const aliceChangeUtxo = new Utxo({ amount: aliceDepositAmount - bobSendAmount, keypair: aliceDepositUtxo.keypair })
+    const aliceChangeUtxo = new Utxo({
+      amount: aliceDepositAmount - bobSendAmount,
+      keypair: aliceDepositUtxo.keypair,
+    })
     await transaction({ tornadoPool, inputs: [aliceDepositUtxo], outputs: [bobSendUtxo, aliceChangeUtxo] })
 
     // Bob parses chain to detect incoming funds
@@ -75,7 +72,12 @@ describe('TornadoPool', () => {
     const bobWithdrawAmount = 2e6
     const bobEthAddress = '0xDeaD00000000000000000000000000000000BEEf'
     const bobChangeUtxo = new Utxo({ amount: bobSendAmount - bobWithdrawAmount, keypair: bobKeypair })
-    await transaction({ tornadoPool, inputs: [bobReceiveUtxo], outputs: [bobChangeUtxo], recipient: bobEthAddress })
+    await transaction({
+      tornadoPool,
+      inputs: [bobReceiveUtxo],
+      outputs: [bobChangeUtxo],
+      recipient: bobEthAddress,
+    })
 
     const bobBalance = await ethers.provider.getBalance(bobEthAddress)
     expect(bobBalance).to.be.equal(bobWithdrawAmount)

@@ -10,7 +10,11 @@
     "circuit": "./scripts/buildCircuit.sh 2 && ./scripts/buildCircuit.sh 16",
     "compile": "npx hardhat compile",
     "build": "npm run circuit && npm run compile",
-    "test": "npx hardhat test"
+    "test": "npx hardhat test",
+    "eslint": "eslint --ext .js --ignore-path .gitignore .",
+    "prettier:check": "prettier --check . --config .prettierrc",
+    "prettier:fix": "prettier --write . --config .prettierrc",
+    "lint": "yarn eslint && yarn prettier:check"
   },
   "keywords": [],
   "author": "",
@@ -34,5 +38,14 @@
     "hardhat": "^2.3.0",
     "snarkjs": "git+https://github.com/tornadocash/snarkjs.git#c103e3bf10e95e2e9bbf0f7952ed13812f8e39d3",
     "tmp-promise": "^3.0.2"
+  },
+  "devDependencies": {
+    "babel-eslint": "^10.1.0",
+    "eslint": "^7.28.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-prettier": "^3.4.0",
+    "prettier": "^2.3.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.13",
+    "solhint-plugin-prettier": "^0.0.5"
   }
 }

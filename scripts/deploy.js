@@ -29,7 +29,7 @@ async function main() {
 
   const Pool = await ethers.getContractFactory('TornadoPool')
   const tornado = await Pool.deploy(verifier2.address, verifier16.address, toFixedHex(root))
-  console.log("TornadoPool's address ", tornado.address)
+  console.log(`TornadoPool address: ${tornado.address}`)
 }
 
 main()
