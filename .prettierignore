@@ -2,3 +2,4 @@
 .idea
 artifacts
 cache
+contracts/Verifier*.sol

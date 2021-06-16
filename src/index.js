@@ -135,8 +135,7 @@ async function transaction({ tornadoPool, inputs = [], outputs = [], fee = 0, re
     value: amount,
     gasLimit: 1e6,
   })
-  const { gasUsed } = await receipt.wait()
-  // console.log(`Gas Used ${gasUsed}`)
+  await receipt.wait()
 }
 
 module.exports = { transaction }
