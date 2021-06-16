@@ -16,9 +16,9 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol"; // todo: maybe remove?
 
 interface IVerifier {
-  function verifyProof(bytes memory _proof, uint256[9] memory _input) external view returns (bool);
+  function verifyProof(bytes memory _proof, uint256[10] memory _input) external view returns (bool);
 
-  function verifyProof(bytes memory _proof, uint256[23] memory _input) external view returns (bool);
+  function verifyProof(bytes memory _proof, uint256[24] memory _input) external view returns (bool);
 }
 
 contract TornadoPool is ReentrancyGuard {
@@ -28,8 +28,8 @@ contract TornadoPool is ReentrancyGuard {
   mapping(bytes32 => bool) public nullifierHashes;
   bytes32 public currentRoot;
   uint256 public currentCommitmentIndex;
-  IVerifier public verifier2;
-  IVerifier public verifier16;
+  IVerifier public immutable verifier2;
+  IVerifier public immutable verifier16;
 
   struct ExtData {
     address payable recipient;
@@ -62,6 +62,7 @@ contract TornadoPool is ReentrancyGuard {
     bytes32 _newRoot,
     bytes32[] calldata _inputNullifiers,
     bytes32[2] calldata _outputCommitments,
+    uint256 _outPathIndices,
     uint256 _extAmount,
     uint256 _fee,
     ExtData calldata _extData,
@@ -72,8 +73,9 @@ contract TornadoPool is ReentrancyGuard {
       require(!isSpent(_inputNullifiers[i]), "Input is already spent");
     }
     require(uint256(_extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
+    require(_outPathIndices == currentCommitmentIndex >> 1, "Invalid merkle tree insert position");
     require(
-      verifyProof(_proof, _root, _newRoot, _inputNullifiers, _outputCommitments, _extAmount, _fee, _extDataHash),
+      verifyProof(_proof, _root, _newRoot, _inputNullifiers, _outputCommitments, _outPathIndices, _extAmount, _fee, _extDataHash),
       "Invalid transaction proof"
     );
 
@@ -97,7 +99,6 @@ contract TornadoPool is ReentrancyGuard {
       _extData.relayer.transfer(_fee);
     }
 
-    // todo enforce currentCommitmentIndex value in snark
     emit NewCommitment(_outputCommitments[0], currentCommitmentIndex++, _extData.encryptedOutput1);
     emit NewCommitment(_outputCommitments[1], currentCommitmentIndex++, _extData.encryptedOutput2);
     for (uint256 i = 0; i < _inputNullifiers.length; i++) {
@@ -128,6 +129,7 @@ contract TornadoPool is ReentrancyGuard {
     bytes32 _newRoot,
     bytes32[] memory _inputNullifiers,
     bytes32[2] memory _outputCommitments,
+    uint256 _outPathIndices,
     uint256 _extAmount,
     uint256 _fee,
     bytes32 _extDataHash
@@ -139,13 +141,14 @@ contract TornadoPool is ReentrancyGuard {
           [
             uint256(_root),
             uint256(_newRoot),
+            _extAmount,
+            _fee,
+            uint256(_extDataHash),
             uint256(_inputNullifiers[0]),
             uint256(_inputNullifiers[1]),
             uint256(_outputCommitments[0]),
             uint256(_outputCommitments[1]),
-            _extAmount,
-            _fee,
-            uint256(_extDataHash)
+            _outPathIndices
           ]
         );
     } else if (_inputNullifiers.length == 16) {
@@ -155,6 +158,9 @@ contract TornadoPool is ReentrancyGuard {
           [
             uint256(_root),
             uint256(_newRoot),
+            _extAmount,
+            _fee,
+            uint256(_extDataHash),
             uint256(_inputNullifiers[0]),
             uint256(_inputNullifiers[1]),
             uint256(_inputNullifiers[2]),
@@ -173,9 +179,7 @@ contract TornadoPool is ReentrancyGuard {
             uint256(_inputNullifiers[15]),
             uint256(_outputCommitments[0]),
             uint256(_outputCommitments[1]),
-            _extAmount,
-            _fee,
-            uint256(_extDataHash)
+            _outPathIndices
           ]
         );
     } else {

@@ -18,8 +18,6 @@ nullifier = hash(commitment, privKey, merklePath)
 template Transaction(levels, nIns, nOuts, zeroLeaf) {
     signal input root;
     signal input newRoot;
-    signal input inputNullifier[nIns];
-    signal input outputCommitment[nOuts];
     // external amount used for deposits and withdrawals
     // correct extAmount range is enforced on the smart contract
     signal input extAmount;
@@ -27,6 +25,7 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     signal input extDataHash;
 
     // data for transaction inputs
+    signal         input inputNullifier[nIns];
     signal private input inAmount[nIns];
     signal private input inBlinding[nIns];
     signal private input inPrivateKey[nIns];
@@ -34,10 +33,11 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     signal private input inPathElements[nIns][levels];
 
     // data for transaction outputs
+    signal         input outputCommitment[nOuts];
     signal private input outAmount[nOuts];
     signal private input outBlinding[nOuts];
     signal private input outPubkey[nOuts];
-    signal private input outPathIndices;
+    signal         input outPathIndices;
     signal private input outPathElements[levels - 1];
 
     component inKeypair[nIns];
