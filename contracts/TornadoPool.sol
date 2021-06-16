@@ -23,7 +23,7 @@ interface IVerifier {
 
 contract TornadoPool is ReentrancyGuard {
   uint256 public constant FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-  uint256 public constant MAX_EXT_AMOUNT = 2**248 - 1;
+  uint256 public constant MAX_EXT_AMOUNT = 2**240 - 1;
 
   mapping(bytes32 => bool) public nullifierHashes;
   bytes32 public currentRoot;

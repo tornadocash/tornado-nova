@@ -11,7 +11,7 @@ const FIELD_SIZE = BigNumber.from(
 )
 
 /** Generate random number of specified byte length */
-const randomBN = (nbytes = 31) => BigNumber.from(crypto.randomBytes(nbytes))
+const randomBN = (nbytes = 30) => BigNumber.from(crypto.randomBytes(nbytes))
 
 function getExtDataHash({ recipient, relayer, encryptedOutput1, encryptedOutput2 }) {
   const abi = new ethers.utils.AbiCoder()

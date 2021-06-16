@@ -77,8 +77,8 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
         checkRoot[tx].in[1] <== tree[tx].root;
         checkRoot[tx].enabled <== inAmount[tx];
 
-        // Check that amount fits into 248 bits to prevent overflow
-        inAmountCheck[tx] = Num2Bits(248);
+        // Check that amount fits into 240 bits to prevent overflow
+        inAmountCheck[tx] = Num2Bits(240);
         inAmountCheck[tx].in <== inAmount[tx];
 
         sumIns += inAmount[tx];
@@ -96,15 +96,15 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
         outUtxoHasher[tx].publicKey <== outPubkey[tx];
         outUtxoHasher[tx].commitment === outputCommitment[tx];
 
-        // Check that amount fits into 248 bits to prevent overflow
-        outAmountCheck[tx] = Num2Bits(248);
+        // Check that amount fits into 240 bits to prevent overflow
+        outAmountCheck[tx] = Num2Bits(240);
         outAmountCheck[tx].in <== outAmount[tx];
 
         sumOuts += outAmount[tx];
     }
 
-    // Check that fee fits into 248 bits to prevent overflow
-    component feeCheck = Num2Bits(248);
+    // Check that fee fits into 240 bits to prevent overflow
+    component feeCheck = Num2Bits(240);
     feeCheck.in <== fee;
 
     // check that there are no same nullifiers among all inputs
