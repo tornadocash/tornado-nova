@@ -13,15 +13,13 @@
 pragma solidity ^0.6.0;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol"; // todo: maybe remove?
-
 interface IVerifier {
   function verifyProof(bytes memory _proof, uint256[10] memory _input) external view returns (bool);
 
   function verifyProof(bytes memory _proof, uint256[24] memory _input) external view returns (bool);
 }
 
-contract TornadoPool is ReentrancyGuard {
+contract TornadoPool {
   uint256 public constant FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   uint256 public constant MAX_EXT_AMOUNT = 2**248 - 1;
 
@@ -67,7 +65,7 @@ contract TornadoPool is ReentrancyGuard {
     uint256 _fee,
     ExtData calldata _extData,
     bytes32 _extDataHash
-  ) external payable nonReentrant {
+  ) external payable {
     require(currentRoot == _root, "Invalid merkle root");
     for (uint256 i = 0; i < _inputNullifiers.length; i++) {
       require(!isSpent(_inputNullifiers[i]), "Input is already spent");

@@ -2,7 +2,7 @@
 const MerkleTree = require('fixed-merkle-tree')
 const { ethers } = require('hardhat')
 const { BigNumber } = ethers
-const { toFixedHex, poseidonHash2, getExtDataHash, FIELD_SIZE } = require('./utils')
+const { toFixedHex, poseidonHash2, getExtDataHash, FIELD_SIZE, shuffle } = require('./utils')
 const Utxo = require('./utxo')
 
 const { prove } = require('./prover')
@@ -12,15 +12,13 @@ async function buildMerkleTree({ tornadoPool }) {
   const filter = tornadoPool.filters.NewCommitment()
   const events = await tornadoPool.queryFilter(filter, 0)
 
-  const leaves = events
-    .sort((a, b) => a.args.index - b.args.index) // todo sort by event date
-    .map((e) => toFixedHex(e.args.commitment))
-  // console.log('leaves', leaves)
+  const leaves = events.sort((a, b) => a.args.index - b.args.index).map((e) => toFixedHex(e.args.commitment))
   return new MerkleTree(MERKLE_TREE_HEIGHT, leaves, { hashFunction: poseidonHash2 })
 }
 
 async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, relayer }) {
-  // todo shuffle inputs and outputs
+  inputs = shuffle(inputs)
+  outputs = shuffle(outputs)
 
   let inputMerklePathIndices = []
   let inputMerklePathElements = []
