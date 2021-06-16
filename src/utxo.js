@@ -1,16 +1,28 @@
 const { ethers } = require('hardhat')
 const { BigNumber } = ethers
-const { randomBN, poseidonHash } = require('./utils')
+const { randomBN, poseidonHash, toBuffer } = require('./utils')
 const Keypair = require('./keypair')
 
 class Utxo {
-  constructor({ amount = 0, keypair = new Keypair(), blinding = randomBN(), index } = {}) {
+  /**
+   *
+   * @param {BigNumber | BigInt | number | string} amount UTXO amount
+   * @param {BigNumber | BigInt | number | string} blinding Blinding factor
+   * @param {Keypair} keypair
+   * @param {number|null} index UTXO index in the merkle tree
+   */
+  constructor({ amount = 0, keypair = new Keypair(), blinding = randomBN(), index = null} = {}) {
     this.amount = BigNumber.from(amount)
     this.blinding = BigNumber.from(blinding)
     this.keypair = keypair
     this.index = index
   }
 
+  /**
+   * Returns commitment for this UTXO
+   *
+   * @returns {BigNumber}
+   */
   getCommitment() {
     if (!this._commitment) {
       this._commitment = poseidonHash([this.amount, this.blinding, this.keypair.pubkey])
@@ -18,6 +30,11 @@ class Utxo {
     return this._commitment
   }
 
+  /**
+   * Returns nullifier for this UTXO
+   *
+   * @returns {BigNumber}
+   */
   getNullifier() {
     if (!this._nullifier) {
       if (this.amount > 0 && (this.index === undefined || this.keypair.privkey === undefined || this.keypair.privkey === null)) {
@@ -28,18 +45,24 @@ class Utxo {
     return this._nullifier
   }
 
+  /**
+   * Encrypt UTXO data using the current keypair
+   *
+   * @returns {string} `0x`-prefixed hex string with data
+   */
   encrypt() {
-    const blindingBuf = Buffer.from(this.blinding.toHexString().slice(2), 'hex')
-    const amountBuf = Buffer.from(this.amount.toHexString().slice(2), 'hex')
-    const bytes = Buffer.concat([
-      Buffer.alloc(31 - blindingBuf.length),
-      blindingBuf,
-      Buffer.alloc(31 - amountBuf.length),
-      amountBuf,
-    ])
+    const bytes = Buffer.concat([toBuffer(this.blinding, 31), toBuffer(this.amount, 31)])
     return this.keypair.encrypt(bytes)
   }
 
+  /**
+   * Decrypt a UTXO
+   *
+   * @param {Keypair} keypair keypair used to decrypt
+   * @param {string} data hex string with data
+   * @param {number} index UTXO index in merkle tree
+   * @returns {Utxo}
+   */
   static decrypt(keypair, data, index) {
     const buf = keypair.decrypt(data)
     return new Utxo({

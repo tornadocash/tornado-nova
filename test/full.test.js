@@ -8,8 +8,6 @@ const {
   toFixedHex,
   takeSnapshot,
   revertSnapshot,
-  packEncryptedMessage,
-  unpackEncryptedMessage,
 } = require('../src/utils')
 const Utxo = require('../src/utxo')
 

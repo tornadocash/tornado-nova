@@ -9,6 +9,7 @@ const poseidonHash2 = (a, b) => poseidonHash([a, b])
 const FIELD_SIZE = BigNumber.from(
   '21888242871839275222246405745257275088548364400416034343698204186575808495617',
 )
+
 /** Generate random number of specified byte length */
 const randomBN = (nbytes = 31) => BigNumber.from(crypto.randomBytes(nbytes))
 
@@ -38,6 +39,7 @@ const toFixedHex = (number, length = 32) =>
     : BigNumber.from(number).toHexString().slice(2)
   ).padStart(length * 2, '0')
 
+/** Convert value into buffer of specified byte length */
 const toBuffer = (value, length) =>
   Buffer.from(
     BigNumber.from(value)

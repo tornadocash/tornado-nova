@@ -34,6 +34,11 @@ function unpackEncryptedMessage(encryptedMessage) {
 }
 
 class Keypair {
+  /**
+   * Initialize a new keypair. Generates a random private key if not defined
+   *
+   * @param {string} privkey
+   */
   constructor(privkey = ethers.Wallet.createRandom().privateKey) {
     this.privkey = privkey
     this.pubkey = poseidonHash([this.privkey])
@@ -44,10 +49,21 @@ class Keypair {
     return toFixedHex(this.pubkey) + Buffer.from(this.encryptionKey, 'base64').toString('hex')
   }
 
+  /**
+   * Key address for this keypair, alias to {@link toString}
+   *
+   * @returns {string}
+   */
   address() {
     return this.toString()
   }
 
+  /**
+   * Initialize new keypair from address string
+   *
+   * @param str
+   * @returns {Keypair}
+   */
   static fromString(str) {
     if (str.length === 130) {
       str = str.slice(2)
@@ -62,10 +78,22 @@ class Keypair {
     })
   }
 
+  /**
+   * Encrypt data using keypair encryption key
+   *
+   * @param {Buffer} bytes
+   * @returns {string} a hex string with encrypted data
+   */
   encrypt(bytes) {
     return packEncryptedMessage(encrypt(this.encryptionKey, { data: bytes.toString('base64') }, 'x25519-xsalsa20-poly1305'))
   }
 
+  /**
+   * Decrypt data using keypair private key
+   *
+   * @param {string} data a hex string with data
+   * @returns {Buffer}
+   */
   decrypt(data) {
     return Buffer.from(decrypt(unpackEncryptedMessage(data), this.privkey.slice(2)), 'base64')
   }
