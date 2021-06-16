@@ -10,7 +10,7 @@ if [ ! -f artifacts/circuits/ptau$POWERS_OF_TAU ]; then
 fi
 npx circom -v -r artifacts/circuits/transaction$1.r1cs -w artifacts/circuits/transaction$1.wasm -s artifacts/circuits/transaction$1.sym circuits/transaction$1.circom
 npx snarkjs groth16 setup artifacts/circuits/transaction$1.r1cs artifacts/circuits/ptau$POWERS_OF_TAU artifacts/circuits/tmp_transaction$1.zkey
-npx snarkjs zkey contribute artifacts/circuits/tmp_transaction$1.zkey artifacts/circuits/transaction$1.zkey
+echo "qwe" | npx snarkjs zkey contribute artifacts/circuits/tmp_transaction$1.zkey artifacts/circuits/transaction$1.zkey
 npx snarkjs zkey export solidityverifier artifacts/circuits/transaction$1.zkey artifacts/circuits/Verifier$1.sol
 sed -i.bak "s/contract Verifier/contract Verifier${1}/g" artifacts/circuits/Verifier$1.sol
 #zkutil setup -c artifacts/circuits/transaction$1.r1cs -p artifacts/circuits/transaction$1.params

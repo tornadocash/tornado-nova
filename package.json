@@ -10,6 +10,7 @@
     "circuit": "./scripts/buildCircuit.sh 2 && ./scripts/buildCircuit.sh 16",
     "compile": "npx hardhat compile",
     "build": "npm run circuit && npm run compile",
+    "download": "curl https://github.com/tornadocash/tornado-pool/releases/download/tmp/ptau15 --create-dirs -o artifacts/circuits/ptau15",
     "test": "npx hardhat test",
     "eslint": "eslint --ext .js --ignore-path .gitignore .",
     "prettier:check": "prettier --check . --config .prettierrc",

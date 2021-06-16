@@ -17,14 +17,14 @@ jobs:
           node-version: 14
       - run: yarn install
       - run: yarn lint
-# build is disabled until it's made non-interactive
-#      - run: yarn build
-#      - run: yarn test
-#      - name: Telegram Failure Notification
-#        uses: appleboy/telegram-action@0.0.7
-#        if: failure()
-#        with:
-#          message: ❗ Build failed for [${{ github.repository }}](https://github.com/${{ github.repository }}/actions) because of ${{ github.actor }}
-#          format: markdown
-#          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-#          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      - run: yarn download
+      - run: yarn build
+      - run: yarn test
+      - name: Telegram Failure Notification
+        uses: appleboy/telegram-action@0.0.7
+        if: failure()
+        with:
+          message: ❗ Build failed for [${{ github.repository }}](https://github.com/${{ github.repository }}/actions) because of ${{ github.actor }}
+          format: markdown
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
