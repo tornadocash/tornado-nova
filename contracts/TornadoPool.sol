@@ -38,6 +38,7 @@ contract TornadoPool {
 
   event NewCommitment(bytes32 commitment, uint256 index, bytes encryptedOutput);
   event NewNullifier(bytes32 nullifier);
+  event PublicKey(address indexed owner, bytes key);
 
   /**
     @dev The constructor
@@ -183,5 +184,9 @@ contract TornadoPool {
     } else {
       revert("unsupported input count");
     }
+  }
+
+  function register(bytes calldata _pubKey) external {
+    emit PublicKey(msg.sender, _pubKey);
   }
 }
