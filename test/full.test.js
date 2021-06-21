@@ -65,7 +65,13 @@ describe('TornadoPool', () => {
     const filter = tornadoPool.filters.NewCommitment()
     const fromBlock = await ethers.provider.getBlock()
     const events = await tornadoPool.queryFilter(filter, fromBlock.number)
-    const bobReceiveUtxo = Utxo.decrypt(bobKeypair, events[0].args.encryptedOutput, events[0].args.index)
+    let bobReceiveUtxo
+    try {
+      bobReceiveUtxo = Utxo.decrypt(bobKeypair, events[0].args.encryptedOutput, events[0].args.index)
+    } catch (e) {
+      // we try to decrypt another output here because it shuffles outputs before sending to blockchain
+      bobReceiveUtxo = Utxo.decrypt(bobKeypair, events[1].args.encryptedOutput, events[1].args.index)
+    }
     expect(bobReceiveUtxo.amount).to.be.equal(bobSendAmount)
 
     // Bob withdraws a part of his funds from the shielded pool
