@@ -39,6 +39,7 @@ contract TornadoPool {
   event NewCommitment(bytes32 commitment, uint256 index, bytes encryptedOutput);
   event NewNullifier(bytes32 nullifier);
   event PublicKey(address indexed owner, bytes key);
+  event EncryptedAccount(address indexed owner, bytes account);
 
   /**
     @dev The constructor
@@ -186,7 +187,8 @@ contract TornadoPool {
     }
   }
 
-  function register(bytes calldata _pubKey) external {
+  function register(bytes calldata _pubKey, bytes calldata _account) external {
     emit PublicKey(msg.sender, _pubKey);
+    emit EncryptedAccount(msg.sender, _account);
   }
 }
