@@ -10,7 +10,7 @@
  * ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo
  */
 
-pragma solidity ^0.6.0;
+pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
 interface IVerifier {
@@ -50,7 +50,7 @@ contract TornadoPool {
     IVerifier _verifier2,
     IVerifier _verifier16,
     bytes32 _currentRoot
-  ) public {
+  ) {
     verifier2 = _verifier2;
     verifier16 = _verifier16;
     currentRoot = _currentRoot;
