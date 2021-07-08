@@ -1,6 +1,6 @@
 const { ethers } = require('hardhat')
 
-const MERKLE_TREE_HEIGHT = 5
+const MERKLE_TREE_HEIGHT = 32
 const MerkleTree = require('fixed-merkle-tree')
 const { poseidon } = require('circomlib')
 const poseidonHash = (items) => ethers.BigNumber.from(poseidon(items).toString())

@@ -19,6 +19,10 @@ interface IVerifier {
   function verifyProof(bytes memory _proof, uint256[24] memory _input) external view returns (bool);
 }
 
+interface ERC20 {
+  function transfer(address to, uint256 value) external returns (bool);
+}
+
 contract TornadoPool {
   uint256 public constant FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   uint256 public constant MAX_EXT_AMOUNT = 2**248 - 1;
@@ -90,13 +94,15 @@ contract TornadoPool {
     } else if (extAmount < 0) {
       require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
       require(_extData.recipient != address(0), "Can't withdraw to zero address");
-      _extData.recipient.transfer(uint256(-extAmount));
+      // _extData.recipient.transfer(uint256(-extAmount));
+      ERC20(0x4200000000000000000000000000000000000006).transfer(_extData.recipient, uint256(-extAmount));
     } else {
       require(msg.value == 0, "Sent ETH amount should be 0 for transaction");
     }
 
     if (_fee > 0) {
-      _extData.relayer.transfer(_fee);
+      // _extData.relayer.transfer(_fee);
+      ERC20(0x4200000000000000000000000000000000000006).transfer(_extData.relayer, _fee);
     }
 
     emit NewCommitment(_outputCommitments[0], currentCommitmentIndex++, _extData.encryptedOutput1);

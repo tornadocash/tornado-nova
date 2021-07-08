@@ -13,7 +13,7 @@ const config = {
     },
   },
   ovm: {
-    solcVersion: '0.7.6', // Your version goes here.
+    solcVersion: '0.7.6+commit.3b061308',
   },
   networks: {
     // goerli: {
