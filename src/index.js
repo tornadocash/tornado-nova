@@ -80,26 +80,33 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
 
   const proof = await prove(input, `./artifacts/circuits/transaction${inputs.length}`)
 
-  const args = [
-    toFixedHex(input.root),
-    toFixedHex(input.newRoot),
-    inputs.map((x) => toFixedHex(x.getNullifier())),
-    outputs.map((x) => toFixedHex(x.getCommitment())),
-    toFixedHex(outputIndex >> outputBatchBits),
-    toFixedHex(extAmount),
-    toFixedHex(fee),
-    extData,
-    toFixedHex(extDataHash),
-  ]
+  const args = {
+    proof,
+    root: toFixedHex(input.root),
+    newRoot: toFixedHex(input.newRoot),
+    inputNullifiers: inputs.map((x) => toFixedHex(x.getNullifier())),
+    outputCommitments: outputs.map((x) => toFixedHex(x.getCommitment())),
+    outPathIndices: toFixedHex(outputIndex >> outputBatchBits),
+    extAmount: toFixedHex(extAmount),
+    fee: toFixedHex(fee),
+    extDataHash: toFixedHex(extDataHash),
+  }
   // console.log('Solidity args', args)
 
   return {
-    proof,
+    extData,
     args,
   }
 }
 
-async function transaction({ tornadoPool, inputs = [], outputs = [], fee = 0, recipient = 0, relayer = 0 }) {
+async function prepareTransaction({
+  tornadoPool,
+  inputs = [],
+  outputs = [],
+  fee = 0,
+  recipient = 0,
+  relayer = 0,
+}) {
   if (inputs.length > 16 || outputs.length > 2) {
     throw new Error('Incorrect inputs/outputs count')
   }
@@ -119,7 +126,7 @@ async function transaction({ tornadoPool, inputs = [], outputs = [], fee = 0, re
     extAmount = FIELD_SIZE.add(extAmount)
   }
 
-  const { proof, args } = await getProof({
+  const { args, extData } = await getProof({
     inputs,
     outputs,
     tree: await buildMerkleTree({ tornadoPool }),
@@ -129,11 +136,42 @@ async function transaction({ tornadoPool, inputs = [], outputs = [], fee = 0, re
     relayer,
   })
 
-  const receipt = await tornadoPool.transaction(proof, ...args, {
+  return {
+    args,
+    extData,
+    amount,
+  }
+}
+
+async function transaction({ tornadoPool, ...rest }) {
+  const { args, extData, amount } = await prepareTransaction({
+    tornadoPool,
+    ...rest,
+  })
+
+  const receipt = await tornadoPool.transaction(args, extData, {
     value: amount,
     gasLimit: 1e6,
   })
   await receipt.wait()
 }
 
-module.exports = { transaction }
+async function registerAndTransact({ tornadoPool, packedPrivateKeyData, poolAddress, ...rest }) {
+  const { args, extData, amount } = await prepareTransaction({
+    tornadoPool,
+    ...rest,
+  })
+
+  const params = {
+    pubKey: poolAddress,
+    account: packedPrivateKeyData,
+  }
+
+  const receipt = await tornadoPool.registerAndTransact(params, args, extData, {
+    value: amount,
+    gasLimit: 2e6,
+  })
+  await receipt.wait()
+}
+
+module.exports = { transaction, registerAndTransact }
