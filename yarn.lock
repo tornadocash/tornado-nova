@@ -4230,10 +4230,10 @@ find-yarn-workspace-root@^2.0.0:
   dependencies:
     micromatch "^4.0.2"
 
-fixed-merkle-tree@^0.5.0:
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/fixed-merkle-tree/-/fixed-merkle-tree-0.5.0.tgz#401cdcf3d670c1e18bc7d3a8e81322eb1b27c1d1"
-  integrity sha512-egOy12EzVATX3Ru2/SLtnWprVpy/sbPCt/MbeG3ANB28jykWLEYj7EjinFnOxtsgR3gTHU6xYXX53yMn/bZqyw==
+fixed-merkle-tree@^0.5.1:
+  version "0.5.1"
+  resolved "https://registry.npmjs.org/fixed-merkle-tree/-/fixed-merkle-tree-0.5.1.tgz#770bbf64b174e88b1133841721b79ea99a63d0b5"
+  integrity sha512-9daba9QU5tWa1scXpWusMFVJgYbSIPJUXdgn0JaaXSK1m4xSjzfTjdT3bYuo/x1xeLWrYj5i21E8q+vxyP7TCw==
   dependencies:
     circomlib "git+https://github.com/tornadocash/circomlib.git#5beb6aee94923052faeecea40135d45b6ce6172c"
     snarkjs "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5"
@@ -7847,20 +7847,9 @@ snapdragon@^0.8.1:
     source-map-resolve "^0.5.0"
     use "^3.1.0"
 
-"snarkjs@git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5":
-  version "0.1.20"
-  resolved "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5"
-  dependencies:
-    big-integer "^1.6.43"
-    chai "^4.2.0"
-    escape-string-regexp "^1.0.5"
-    eslint "^5.16.0"
-    keccak "^2.0.0"
-    yargs "^12.0.5"
-
-"snarkjs@git+https://github.com/tornadocash/snarkjs.git#c103e3bf10e95e2e9bbf0f7952ed13812f8e39d3":
+"snarkjs@git+https://github.com/tornadocash/snarkjs.git#616c2d30699f28c8f3ab737b877402ccbb604cfe":
   version "0.4.5"
-  resolved "git+https://github.com/tornadocash/snarkjs.git#c103e3bf10e95e2e9bbf0f7952ed13812f8e39d3"
+  resolved "git+https://github.com/tornadocash/snarkjs.git#616c2d30699f28c8f3ab737b877402ccbb604cfe"
   dependencies:
     "@iden3/binfileutils" "0.0.8"
     blake2b-wasm "https://github.com/jbaylina/blake2b-wasm.git"
@@ -7872,6 +7861,17 @@ snapdragon@^0.8.1:
     logplease "^1.2.15"
     r1csfile "0.0.32"
     readline "^1.3.0"
+
+"snarkjs@git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5":
+  version "0.1.20"
+  resolved "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5"
+  dependencies:
+    big-integer "^1.6.43"
+    chai "^4.2.0"
+    escape-string-regexp "^1.0.5"
+    eslint "^5.16.0"
+    keccak "^2.0.0"
+    yargs "^12.0.5"
 
 solc@0.7.3:
   version "0.7.3"
