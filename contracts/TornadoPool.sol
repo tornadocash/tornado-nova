@@ -40,6 +40,23 @@ contract TornadoPool {
     bytes encryptedOutput2;
   }
 
+  struct Proof {
+    bytes proof;
+    bytes32 root;
+    bytes32 newRoot;
+    bytes32[] inputNullifiers;
+    bytes32[2] outputCommitments;
+    uint256 outPathIndices;
+    uint256 extAmount;
+    uint256 fee;
+    bytes32 extDataHash;
+  }
+
+  struct Register {
+    bytes pubKey;
+    bytes account;
+  }
+
   event NewCommitment(bytes32 commitment, uint256 index, bytes encryptedOutput);
   event NewNullifier(bytes32 nullifier);
   event PublicKey(address indexed owner, bytes key);
@@ -60,37 +77,23 @@ contract TornadoPool {
     currentRoot = _currentRoot;
   }
 
-  function transaction(
-    bytes calldata _proof,
-    bytes32 _root,
-    bytes32 _newRoot,
-    bytes32[] calldata _inputNullifiers,
-    bytes32[2] calldata _outputCommitments,
-    uint256 _outPathIndices,
-    uint256 _extAmount,
-    uint256 _fee,
-    ExtData calldata _extData,
-    bytes32 _extDataHash
-  ) external payable {
-    require(currentRoot == _root, "Invalid merkle root");
-    for (uint256 i = 0; i < _inputNullifiers.length; i++) {
-      require(!isSpent(_inputNullifiers[i]), "Input is already spent");
+  function transaction(Proof calldata _args, ExtData calldata _extData) public payable {
+    require(currentRoot == _args.root, "Invalid merkle root");
+    for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
+      require(!isSpent(_args.inputNullifiers[i]), "Input is already spent");
     }
-    require(uint256(_extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
-    require(_outPathIndices == currentCommitmentIndex >> 1, "Invalid merkle tree insert position");
-    require(
-      verifyProof(_proof, _root, _newRoot, _inputNullifiers, _outputCommitments, _outPathIndices, _extAmount, _fee, _extDataHash),
-      "Invalid transaction proof"
-    );
+    require(uint256(_args.extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
+    require(_args.outPathIndices == currentCommitmentIndex >> 1, "Invalid merkle tree insert position");
+    require(verifyProof(_args), "Invalid transaction proof");
 
-    currentRoot = _newRoot;
-    for (uint256 i = 0; i < _inputNullifiers.length; i++) {
-      nullifierHashes[_inputNullifiers[i]] = true;
+    currentRoot = _args.newRoot;
+    for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
+      nullifierHashes[_args.inputNullifiers[i]] = true;
     }
 
-    int256 extAmount = calculateExternalAmount(_extAmount);
+    int256 extAmount = calculateExternalAmount(_args.extAmount);
     if (extAmount > 0) {
-      require(msg.value == uint256(extAmount), "Incorrect amount of ETH sent on deposit");
+      require(msg.value == uint256(_args.extAmount), "Incorrect amount of ETH sent on deposit");
     } else if (extAmount < 0) {
       require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
       require(_extData.recipient != address(0), "Can't withdraw to zero address");
@@ -100,15 +103,15 @@ contract TornadoPool {
       require(msg.value == 0, "Sent ETH amount should be 0 for transaction");
     }
 
-    if (_fee > 0) {
-      // _extData.relayer.transfer(_fee);
-      ERC20(0x4200000000000000000000000000000000000006).transfer(_extData.relayer, _fee);
+    if (_args.fee > 0) {
+      // _extData.relayer.transfer(_args.fee);
+      ERC20(0x4200000000000000000000000000000000000006).transfer(_extData.relayer, _args.fee);
     }
 
-    emit NewCommitment(_outputCommitments[0], currentCommitmentIndex++, _extData.encryptedOutput1);
-    emit NewCommitment(_outputCommitments[1], currentCommitmentIndex++, _extData.encryptedOutput2);
-    for (uint256 i = 0; i < _inputNullifiers.length; i++) {
-      emit NewNullifier(_inputNullifiers[i]);
+    emit NewCommitment(_args.outputCommitments[0], currentCommitmentIndex++, _extData.encryptedOutput1);
+    emit NewCommitment(_args.outputCommitments[1], currentCommitmentIndex++, _extData.encryptedOutput2);
+    for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
+      emit NewNullifier(_args.inputNullifiers[i]);
     }
   }
 
@@ -129,63 +132,53 @@ contract TornadoPool {
     return nullifierHashes[_nullifierHash];
   }
 
-  function verifyProof(
-    bytes memory _proof,
-    bytes32 _root,
-    bytes32 _newRoot,
-    bytes32[] memory _inputNullifiers,
-    bytes32[2] memory _outputCommitments,
-    uint256 _outPathIndices,
-    uint256 _extAmount,
-    uint256 _fee,
-    bytes32 _extDataHash
-  ) public view returns (bool) {
-    if (_inputNullifiers.length == 2) {
+  function verifyProof(Proof calldata _args) public view returns (bool) {
+    if (_args.inputNullifiers.length == 2) {
       return
         verifier2.verifyProof(
-          _proof,
+          _args.proof,
           [
-            uint256(_root),
-            uint256(_newRoot),
-            _extAmount,
-            _fee,
-            uint256(_extDataHash),
-            uint256(_inputNullifiers[0]),
-            uint256(_inputNullifiers[1]),
-            uint256(_outputCommitments[0]),
-            uint256(_outputCommitments[1]),
-            _outPathIndices
+            uint256(_args.root),
+            uint256(_args.newRoot),
+            _args.extAmount,
+            _args.fee,
+            uint256(_args.extDataHash),
+            uint256(_args.inputNullifiers[0]),
+            uint256(_args.inputNullifiers[1]),
+            uint256(_args.outputCommitments[0]),
+            uint256(_args.outputCommitments[1]),
+            _args.outPathIndices
           ]
         );
-    } else if (_inputNullifiers.length == 16) {
+    } else if (_args.inputNullifiers.length == 16) {
       return
         verifier16.verifyProof(
-          _proof,
+          _args.proof,
           [
-            uint256(_root),
-            uint256(_newRoot),
-            _extAmount,
-            _fee,
-            uint256(_extDataHash),
-            uint256(_inputNullifiers[0]),
-            uint256(_inputNullifiers[1]),
-            uint256(_inputNullifiers[2]),
-            uint256(_inputNullifiers[3]),
-            uint256(_inputNullifiers[4]),
-            uint256(_inputNullifiers[5]),
-            uint256(_inputNullifiers[6]),
-            uint256(_inputNullifiers[7]),
-            uint256(_inputNullifiers[8]),
-            uint256(_inputNullifiers[9]),
-            uint256(_inputNullifiers[10]),
-            uint256(_inputNullifiers[11]),
-            uint256(_inputNullifiers[12]),
-            uint256(_inputNullifiers[13]),
-            uint256(_inputNullifiers[14]),
-            uint256(_inputNullifiers[15]),
-            uint256(_outputCommitments[0]),
-            uint256(_outputCommitments[1]),
-            _outPathIndices
+            uint256(_args.root),
+            uint256(_args.newRoot),
+            _args.extAmount,
+            _args.fee,
+            uint256(_args.extDataHash),
+            uint256(_args.inputNullifiers[0]),
+            uint256(_args.inputNullifiers[1]),
+            uint256(_args.inputNullifiers[2]),
+            uint256(_args.inputNullifiers[3]),
+            uint256(_args.inputNullifiers[4]),
+            uint256(_args.inputNullifiers[5]),
+            uint256(_args.inputNullifiers[6]),
+            uint256(_args.inputNullifiers[7]),
+            uint256(_args.inputNullifiers[8]),
+            uint256(_args.inputNullifiers[9]),
+            uint256(_args.inputNullifiers[10]),
+            uint256(_args.inputNullifiers[11]),
+            uint256(_args.inputNullifiers[12]),
+            uint256(_args.inputNullifiers[13]),
+            uint256(_args.inputNullifiers[14]),
+            uint256(_args.inputNullifiers[15]),
+            uint256(_args.outputCommitments[0]),
+            uint256(_args.outputCommitments[1]),
+            _args.outPathIndices
           ]
         );
     } else {
@@ -193,8 +186,17 @@ contract TornadoPool {
     }
   }
 
-  function register(bytes calldata _pubKey, bytes calldata _account) external {
-    emit PublicKey(msg.sender, _pubKey);
-    emit EncryptedAccount(msg.sender, _account);
+  function register(Register calldata args) public {
+    emit PublicKey(msg.sender, args.pubKey);
+    emit EncryptedAccount(msg.sender, args.account);
+  }
+
+  function registerAndTransact(
+    Register calldata _registerArgs,
+    Proof calldata _proofArgs,
+    ExtData calldata _extData
+  ) external payable {
+    register(_registerArgs);
+    transaction(_proofArgs, _extData);
   }
 }

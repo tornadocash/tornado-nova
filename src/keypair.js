@@ -101,4 +101,8 @@ class Keypair {
   }
 }
 
-module.exports = Keypair
+module.exports = {
+  Keypair,
+  packEncryptedMessage,
+  unpackEncryptedMessage,
+}

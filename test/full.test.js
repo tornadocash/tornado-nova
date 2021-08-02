@@ -8,14 +8,16 @@ const Utxo = require('../src/utxo')
 const MERKLE_TREE_HEIGHT = 5
 const MerkleTree = require('fixed-merkle-tree')
 
-const { transaction } = require('../src/index')
-const Keypair = require('../src/keypair')
+const { transaction, registerAndTransact } = require('../src/index')
+const { Keypair } = require('../src/keypair')
 
 describe('TornadoPool', () => {
-  let snapshotId, tornadoPool
+  let snapshotId, tornadoPool, sender
 
   /* prettier-ignore */
   before(async function () {
+    ;[sender] = await ethers.getSigners()
+
     const Verifier2 = await ethers.getContractFactory('Verifier2')
     const verifier2 = await Verifier2.deploy()
     await verifier2.deployed()
@@ -40,6 +42,64 @@ describe('TornadoPool', () => {
     const ciphertext = keypair.encrypt(data)
     const result = keypair.decrypt(ciphertext)
     expect(result).to.be.deep.equal(data)
+  })
+
+  it('should register and deposit', async function () {
+    // Alice deposits into tornado pool
+    const aliceDepositAmount = 1e7
+    const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount })
+
+    const backupAccount = new Keypair()
+
+    const bufferPrivateKey = Buffer.from(aliceDepositUtxo.keypair.privkey)
+    const packedPrivateKeyData = backupAccount.encrypt(bufferPrivateKey)
+
+    tornadoPool = tornadoPool.connect(sender)
+    await registerAndTransact({
+      tornadoPool,
+      packedPrivateKeyData,
+      outputs: [aliceDepositUtxo],
+      poolAddress: aliceDepositUtxo.keypair.address(),
+    })
+
+    const filter = tornadoPool.filters.NewCommitment()
+    const fromBlock = await ethers.provider.getBlock()
+    const events = await tornadoPool.queryFilter(filter, fromBlock.number)
+
+    let aliceReceiveUtxo
+    try {
+      aliceReceiveUtxo = Utxo.decrypt(
+        aliceDepositUtxo.keypair,
+        events[0].args.encryptedOutput,
+        events[0].args.index,
+      )
+    } catch (e) {
+      // we try to decrypt another output here because it shuffles outputs before sending to blockchain
+      aliceReceiveUtxo = Utxo.decrypt(
+        aliceDepositUtxo.keypair,
+        events[1].args.encryptedOutput,
+        events[1].args.index,
+      )
+    }
+    expect(aliceReceiveUtxo.amount).to.be.equal(aliceDepositAmount)
+
+    const filterRegister = tornadoPool.filters.PublicKey(sender.address)
+    const filterFromBlock = await ethers.provider.getBlock()
+    const registerEvents = await tornadoPool.queryFilter(filterRegister, filterFromBlock.number)
+
+    const [registerEvent] = registerEvents.sort((a, b) => a.blockNumber - b.blockNumber).slice(-1)
+
+    expect(registerEvent.args.key).to.be.equal(aliceDepositUtxo.keypair.address())
+
+    const accountFilter = tornadoPool.filters.EncryptedAccount(sender.address)
+    const accountFromBlock = await ethers.provider.getBlock()
+    const accountEvents = await tornadoPool.queryFilter(accountFilter, accountFromBlock.number)
+
+    const [accountEvent] = accountEvents.sort((a, b) => a.blockNumber - b.blockNumber).slice(-1)
+
+    const privateKey = backupAccount.decrypt(accountEvent.args.account)
+
+    expect(bufferPrivateKey.toString('hex')).to.be.equal(privateKey.toString('hex'))
   })
 
   it('should deposit, transact and withdraw', async function () {
