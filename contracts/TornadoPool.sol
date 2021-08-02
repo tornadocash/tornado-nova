@@ -66,6 +66,7 @@ contract TornadoPool {
     @dev The constructor
     @param _verifier2 the address of SNARK verifier for 2 inputs
     @param _verifier16 the address of SNARK verifier for 16 inputs
+    @param _currentRoot root of an empty Merkle tree
   */
   constructor(
     IVerifier _verifier2,
@@ -98,20 +99,32 @@ contract TornadoPool {
       require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
       require(_extData.recipient != address(0), "Can't withdraw to zero address");
       // _extData.recipient.transfer(uint256(-extAmount));
-      ERC20(0x4200000000000000000000000000000000000006).transfer(_extData.recipient, uint256(-extAmount));
+      _transfer(_extData.recipient, uint256(-extAmount));
     } else {
       require(msg.value == 0, "Sent ETH amount should be 0 for transaction");
     }
 
     if (_args.fee > 0) {
       // _extData.relayer.transfer(_args.fee);
-      ERC20(0x4200000000000000000000000000000000000006).transfer(_extData.relayer, _args.fee);
+      _transfer(_extData.relayer, _args.fee);
     }
 
     emit NewCommitment(_args.outputCommitments[0], currentCommitmentIndex++, _extData.encryptedOutput1);
     emit NewCommitment(_args.outputCommitments[1], currentCommitmentIndex++, _extData.encryptedOutput2);
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       emit NewNullifier(_args.inputNullifiers[i]);
+    }
+  }
+
+  function _transfer(address payable _to, uint256 _amount) internal {
+    uint256 id;
+    assembly {
+      id := chainid()
+    }
+    if (id == 10) {
+      ERC20(0x4200000000000000000000000000000000000006).transfer(_to, _amount);
+    } else {
+      _to.transfer(_amount);
     }
   }
 
