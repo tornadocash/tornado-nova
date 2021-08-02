@@ -24,7 +24,7 @@
   "dependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
-    "@openzeppelin/contracts": "^3.4.0",
+    "@openzeppelin/contracts": "git+https://github.com/tornadocash/openzeppelin-contracts.git#6e46aa6946a7f215e7604169ddf46e1aebea850f",
     "bignumber.js": "^9.0.0",
     "chai": "^4.3.4",
     "circom": "^0.5.45",
