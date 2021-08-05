@@ -13,7 +13,7 @@ interface iOVM_CrossDomainMessenger {
  */
 contract CrossChainUpgradeableProxy is TransparentUpgradeableProxy {
   // https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts/deployments/README.md
-  iOVM_CrossDomainMessenger public constant messenger = iOVM_CrossDomainMessenger(0x4200000000000000000000000000000000000007);
+  iOVM_CrossDomainMessenger public immutable messenger;
 
   /**
    * @dev Initializes an upgradeable proxy backed by the implementation at `_logic`.
@@ -21,8 +21,11 @@ contract CrossChainUpgradeableProxy is TransparentUpgradeableProxy {
   constructor(
     address _logic,
     address _admin,
-    bytes memory _data
-  ) TransparentUpgradeableProxy(_logic, _admin, _data) {}
+    bytes memory _data,
+    iOVM_CrossDomainMessenger _messenger
+  ) TransparentUpgradeableProxy(_logic, _admin, _data) {
+    messenger = _messenger;
+  }
 
   /**
    * @dev Modifier used internally that will delegate the call to the implementation unless the sender is the cross chain admin.

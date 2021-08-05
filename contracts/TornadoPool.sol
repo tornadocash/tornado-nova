@@ -12,6 +12,7 @@
 
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
+import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
 
 interface IVerifier {
   function verifyProof(bytes memory _proof, uint256[10] memory _input) external view returns (bool);
@@ -23,7 +24,7 @@ interface ERC20 {
   function transfer(address to, uint256 value) external returns (bool);
 }
 
-contract TornadoPool {
+contract TornadoPool is Initializable {
   uint256 public constant FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   uint256 public constant MAX_EXT_AMOUNT = 2**248 - 1;
 
@@ -66,15 +67,13 @@ contract TornadoPool {
     @dev The constructor
     @param _verifier2 the address of SNARK verifier for 2 inputs
     @param _verifier16 the address of SNARK verifier for 16 inputs
-    @param _currentRoot root of an empty Merkle tree
   */
-  constructor(
-    IVerifier _verifier2,
-    IVerifier _verifier16,
-    bytes32 _currentRoot
-  ) {
+  constructor(IVerifier _verifier2, IVerifier _verifier16) {
     verifier2 = _verifier2;
     verifier16 = _verifier16;
+  }
+
+  function initialize(bytes32 _currentRoot) external initializer {
     currentRoot = _currentRoot;
   }
 

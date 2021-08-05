@@ -1,3 +1,4 @@
+/* global network */
 const crypto = require('crypto')
 const { ethers } = require('hardhat')
 const BigNumber = ethers.BigNumber
@@ -73,6 +74,15 @@ async function revertSnapshot(id) {
   await ethers.provider.send('evm_revert', [id])
 }
 
+async function getSignerFromAddress(address) {
+  await network.provider.request({
+    method: 'hardhat_impersonateAccount',
+    params: [address],
+  })
+
+  return await ethers.provider.getSigner(address)
+}
+
 module.exports = {
   FIELD_SIZE,
   randomBN,
@@ -84,4 +94,5 @@ module.exports = {
   takeSnapshot,
   revertSnapshot,
   shuffle,
+  getSignerFromAddress,
 }
