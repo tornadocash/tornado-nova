@@ -79,10 +79,12 @@ contract TornadoPool {
       require(!isSpent(_args.inputNullifiers[i]), "Input is already spent");
     }
     require(uint256(_args.extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
-    require(_args.outPathIndices == currentCommitmentIndex >> 1, "Invalid merkle tree insert position");
+    uint256 cachedCommitmentIndex = currentCommitmentIndex;
+    require(_args.outPathIndices == cachedCommitmentIndex >> 1, "Invalid merkle tree insert position");
     require(verifyProof(_args), "Invalid transaction proof");
 
     currentRoot = _args.newRoot;
+    currentCommitmentIndex = cachedCommitmentIndex + 2;
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       nullifierHashes[_args.inputNullifiers[i]] = true;
     }
@@ -102,8 +104,8 @@ contract TornadoPool {
       _extData.relayer.transfer(_args.fee);
     }
 
-    emit NewCommitment(_args.outputCommitments[0], currentCommitmentIndex++, _extData.encryptedOutput1);
-    emit NewCommitment(_args.outputCommitments[1], currentCommitmentIndex++, _extData.encryptedOutput2);
+    emit NewCommitment(_args.outputCommitments[0], cachedCommitmentIndex, _extData.encryptedOutput1);
+    emit NewCommitment(_args.outputCommitments[1], cachedCommitmentIndex + 1, _extData.encryptedOutput2);
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       emit NewNullifier(_args.inputNullifiers[i]);
     }
