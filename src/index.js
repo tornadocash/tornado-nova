@@ -48,7 +48,9 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
 
   const extData = {
     recipient: toFixedHex(recipient, 20),
+    extAmount: toFixedHex(extAmount),
     relayer: toFixedHex(relayer, 20),
+    fee: toFixedHex(fee),
     encryptedOutput1: outputs[0].encrypt(),
     encryptedOutput2: outputs[1].encrypt(),
   }
@@ -59,8 +61,7 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
     newRoot: tree.root(),
     inputNullifier: inputs.map((x) => x.getNullifier()),
     outputCommitment: outputs.map((x) => x.getCommitment()),
-    extAmount,
-    fee,
+    publicAmount: BigNumber.from(fee).sub(extAmount).add(FIELD_SIZE).mod(FIELD_SIZE).toString(),
     extDataHash,
 
     // data for 2 transaction inputs
@@ -87,8 +88,7 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
     inputNullifiers: inputs.map((x) => toFixedHex(x.getNullifier())),
     outputCommitments: outputs.map((x) => toFixedHex(x.getCommitment())),
     outPathIndices: toFixedHex(outputIndex >> outputBatchBits),
-    extAmount: toFixedHex(extAmount),
-    fee: toFixedHex(fee),
+    publicAmount: toFixedHex(input.publicAmount),
     extDataHash: toFixedHex(extDataHash),
   }
   // console.log('Solidity args', args)

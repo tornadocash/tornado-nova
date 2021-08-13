@@ -13,15 +13,19 @@ const FIELD_SIZE = BigNumber.from(
 /** Generate random number of specified byte length */
 const randomBN = (nbytes = 31) => BigNumber.from(crypto.randomBytes(nbytes))
 
-function getExtDataHash({ recipient, relayer, encryptedOutput1, encryptedOutput2 }) {
+function getExtDataHash({ recipient, extAmount, relayer, fee, encryptedOutput1, encryptedOutput2 }) {
   const abi = new ethers.utils.AbiCoder()
 
   const encodedData = abi.encode(
-    ['tuple(address recipient,address relayer,bytes encryptedOutput1,bytes encryptedOutput2)'],
+    [
+      'tuple(address recipient,uint256 extAmount,address relayer,uint256 fee,bytes encryptedOutput1,bytes encryptedOutput2)',
+    ],
     [
       {
         recipient: toFixedHex(recipient, 20),
+        extAmount: toFixedHex(extAmount),
         relayer: toFixedHex(relayer, 20),
+        fee: toFixedHex(fee),
         encryptedOutput1: encryptedOutput1,
         encryptedOutput2: encryptedOutput2,
       },

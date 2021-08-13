@@ -14,9 +14,9 @@ pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
 interface IVerifier {
-  function verifyProof(bytes memory _proof, uint256[10] memory _input) external view returns (bool);
+  function verifyProof(bytes memory _proof, uint256[9] memory _input) external view returns (bool);
 
-  function verifyProof(bytes memory _proof, uint256[24] memory _input) external view returns (bool);
+  function verifyProof(bytes memory _proof, uint256[23] memory _input) external view returns (bool);
 }
 
 contract TornadoPool {
@@ -31,7 +31,9 @@ contract TornadoPool {
 
   struct ExtData {
     address payable recipient;
+    uint256 extAmount;
     address payable relayer;
+    uint256 fee;
     bytes encryptedOutput1;
     bytes encryptedOutput2;
   }
@@ -43,8 +45,7 @@ contract TornadoPool {
     bytes32[] inputNullifiers;
     bytes32[2] outputCommitments;
     uint256 outPathIndices;
-    uint256 extAmount;
-    uint256 fee;
+    uint256 publicAmount;
     bytes32 extDataHash;
   }
 
@@ -81,6 +82,8 @@ contract TornadoPool {
     require(uint256(_args.extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
     uint256 cachedCommitmentIndex = currentCommitmentIndex;
     require(_args.outPathIndices == cachedCommitmentIndex >> 1, "Invalid merkle tree insert position");
+    require(_extData.fee < 2**248, "Invalid fee");
+    require((_args.publicAmount + _extData.extAmount) % FIELD_SIZE == _extData.fee % FIELD_SIZE, "Invalid public amount");
     require(verifyProof(_args), "Invalid transaction proof");
 
     currentRoot = _args.newRoot;
@@ -89,9 +92,9 @@ contract TornadoPool {
       nullifierHashes[_args.inputNullifiers[i]] = true;
     }
 
-    int256 extAmount = calculateExternalAmount(_args.extAmount);
+    int256 extAmount = calculateExternalAmount(_extData.extAmount);
     if (extAmount > 0) {
-      require(msg.value == uint256(_args.extAmount), "Incorrect amount of ETH sent on deposit");
+      require(msg.value == uint256(_extData.extAmount), "Incorrect amount of ETH sent on deposit");
     } else if (extAmount < 0) {
       require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
       require(_extData.recipient != address(0), "Can't withdraw to zero address");
@@ -100,8 +103,8 @@ contract TornadoPool {
       require(msg.value == 0, "Sent ETH amount should be 0 for transaction");
     }
 
-    if (_args.fee > 0) {
-      _extData.relayer.transfer(_args.fee);
+    if (_extData.fee > 0) {
+      _extData.relayer.transfer(_extData.fee);
     }
 
     emit NewCommitment(_args.outputCommitments[0], cachedCommitmentIndex, _extData.encryptedOutput1);
@@ -136,8 +139,7 @@ contract TornadoPool {
           [
             uint256(_args.root),
             uint256(_args.newRoot),
-            _args.extAmount,
-            _args.fee,
+            _args.publicAmount,
             uint256(_args.extDataHash),
             uint256(_args.inputNullifiers[0]),
             uint256(_args.inputNullifiers[1]),
@@ -153,8 +155,7 @@ contract TornadoPool {
           [
             uint256(_args.root),
             uint256(_args.newRoot),
-            _args.extAmount,
-            _args.fee,
+            _args.publicAmount,
             uint256(_args.extDataHash),
             uint256(_args.inputNullifiers[0]),
             uint256(_args.inputNullifiers[1]),
