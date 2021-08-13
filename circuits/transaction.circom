@@ -124,7 +124,7 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     sumIns + extAmount === sumOuts + fee;
 
     // Check merkle tree update with inserted transaction outputs
-    component treeUpdater = TreeUpdater(levels, zeroLeaf);
+    component treeUpdater = TreeUpdater(levels, 1 /* log2(nOuts) */, zeroLeaf);
     treeUpdater.oldRoot <== root;
     treeUpdater.newRoot <== newRoot;
     for (var i = 0; i < nOuts; i++) {
