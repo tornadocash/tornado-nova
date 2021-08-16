@@ -44,6 +44,14 @@ describe('TornadoPool', () => {
     expect(result).to.be.deep.equal(data)
   })
 
+  it('constants check', async () => {
+    const maxFee = await tornadoPool.MAX_FEE()
+    const maxExtAmount = await tornadoPool.MAX_EXT_AMOUNT()
+    const fieldSize = await tornadoPool.FIELD_SIZE()
+
+    expect(maxExtAmount.add(maxFee)).to.be.lt(fieldSize)
+  })
+
   it('should register and deposit', async function () {
     // Alice deposits into tornado pool
     const aliceDepositAmount = 1e7

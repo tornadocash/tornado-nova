@@ -117,7 +117,7 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     }
 
     // verify amount invariant
-    sumIns === sumOuts + publicAmount;
+    sumIns + publicAmount === sumOuts;
 
     // Check merkle tree update with inserted transaction outputs
     component treeUpdater = TreeUpdater(levels, 1 /* log2(nOuts) */, zeroLeaf);

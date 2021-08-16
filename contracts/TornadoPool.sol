@@ -21,7 +21,7 @@ interface IVerifier {
 
 contract TornadoPool {
   uint256 public constant FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-  uint256 public constant MAX_EXT_AMOUNT = 2**248 - 1;
+  int256 public constant MAX_EXT_AMOUNT = 2**248;
   uint256 public constant MAX_FEE = 2**248;
 
   mapping(bytes32 => bool) public nullifierHashes;
@@ -83,11 +83,7 @@ contract TornadoPool {
     require(uint256(_args.extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
     uint256 cachedCommitmentIndex = currentCommitmentIndex;
     require(_args.outPathIndices == cachedCommitmentIndex >> 1, "Invalid merkle tree insert position");
-    require(_extData.fee < MAX_FEE, "Invalid fee");
-    require(_extData.extAmount < int256(MAX_EXT_AMOUNT) && _extData.extAmount > -int256(MAX_EXT_AMOUNT), "Invalid ext amount");
-    int256 _publicAmount = int256(_extData.fee) - _extData.extAmount;
-    uint256 publicAmount = (_publicAmount >= 0) ? uint256(_publicAmount) : FIELD_SIZE + uint256(_publicAmount);
-    require(_args.publicAmount == publicAmount, "Invalid public amount");
+    require(_args.publicAmount == calculatePublicAmount(_extData.extAmount, _extData.fee), "Invalid public amount");
     require(verifyProof(_args), "Invalid transaction proof");
 
     currentRoot = _args.newRoot;
@@ -115,6 +111,13 @@ contract TornadoPool {
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       emit NewNullifier(_args.inputNullifiers[i]);
     }
+  }
+
+  function calculatePublicAmount(int256 _extAmount, uint256 _fee) public pure returns(uint256) {
+    require(_fee < MAX_FEE, "Invalid fee");
+    require(_extAmount > -MAX_EXT_AMOUNT && _extAmount < MAX_EXT_AMOUNT, "Invalid ext amount");
+    int256 publicAmount = _extAmount - int256(_fee);
+    return (publicAmount >= 0) ? uint256(publicAmount) : FIELD_SIZE - uint256(-publicAmount);
   }
 
   /** @dev whether a note is already spent */

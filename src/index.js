@@ -61,7 +61,7 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
     newRoot: tree.root(),
     inputNullifier: inputs.map((x) => x.getNullifier()),
     outputCommitment: outputs.map((x) => x.getCommitment()),
-    publicAmount: BigNumber.from(fee).sub(extAmount).add(FIELD_SIZE).mod(FIELD_SIZE).toString(),
+    publicAmount: BigNumber.from(extAmount).sub(fee).add(FIELD_SIZE).mod(FIELD_SIZE).toString(),
     extDataHash,
 
     // data for 2 transaction inputs
