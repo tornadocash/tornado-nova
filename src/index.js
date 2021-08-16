@@ -121,10 +121,7 @@ async function prepareTransaction({
     .add(outputs.reduce((sum, x) => sum.add(x.amount), BigNumber.from(0)))
     .sub(inputs.reduce((sum, x) => sum.add(x.amount), BigNumber.from(0)))
 
-  const amount = extAmount > 0 ? extAmount : 0 // extAmount will be positive for a deposit, zero for a transact and negative for withdraw
-  if (extAmount < 0) {
-    extAmount = FIELD_SIZE.add(extAmount)
-  }
+  const amount = extAmount > 0 ? extAmount : 0
 
   const { args, extData } = await getProof({
     inputs,

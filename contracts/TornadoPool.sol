@@ -22,6 +22,7 @@ interface IVerifier {
 contract TornadoPool {
   uint256 public constant FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   uint256 public constant MAX_EXT_AMOUNT = 2**248 - 1;
+  uint256 public constant MAX_FEE = 2**248;
 
   mapping(bytes32 => bool) public nullifierHashes;
   bytes32 public currentRoot;
@@ -31,7 +32,7 @@ contract TornadoPool {
 
   struct ExtData {
     address payable recipient;
-    uint256 extAmount;
+    int256 extAmount;
     address payable relayer;
     uint256 fee;
     bytes encryptedOutput1;
@@ -82,8 +83,11 @@ contract TornadoPool {
     require(uint256(_args.extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
     uint256 cachedCommitmentIndex = currentCommitmentIndex;
     require(_args.outPathIndices == cachedCommitmentIndex >> 1, "Invalid merkle tree insert position");
-    require(_extData.fee < 2**248, "Invalid fee");
-    require((_args.publicAmount + _extData.extAmount) % FIELD_SIZE == _extData.fee % FIELD_SIZE, "Invalid public amount");
+    require(_extData.fee < MAX_FEE, "Invalid fee");
+    require(_extData.extAmount < int256(MAX_EXT_AMOUNT) && _extData.extAmount > -int256(MAX_EXT_AMOUNT), "Invalid ext amount");
+    int256 _publicAmount = int256(_extData.fee) - _extData.extAmount;
+    uint256 publicAmount = (_publicAmount >= 0) ? uint256(_publicAmount) : FIELD_SIZE + uint256(_publicAmount);
+    require(_args.publicAmount == publicAmount, "Invalid public amount");
     require(verifyProof(_args), "Invalid transaction proof");
 
     currentRoot = _args.newRoot;
@@ -92,13 +96,12 @@ contract TornadoPool {
       nullifierHashes[_args.inputNullifiers[i]] = true;
     }
 
-    int256 extAmount = calculateExternalAmount(_extData.extAmount);
-    if (extAmount > 0) {
+    if (_extData.extAmount > 0) {
       require(msg.value == uint256(_extData.extAmount), "Incorrect amount of ETH sent on deposit");
-    } else if (extAmount < 0) {
+    } else if (_extData.extAmount < 0) {
       require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
       require(_extData.recipient != address(0), "Can't withdraw to zero address");
-      _extData.recipient.transfer(uint256(-extAmount));
+      _extData.recipient.transfer(uint256(-_extData.extAmount));
     } else {
       require(msg.value == 0, "Sent ETH amount should be 0 for transaction");
     }
@@ -111,18 +114,6 @@ contract TornadoPool {
     emit NewCommitment(_args.outputCommitments[1], cachedCommitmentIndex + 1, _extData.encryptedOutput2);
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       emit NewNullifier(_args.inputNullifiers[i]);
-    }
-  }
-
-  function calculateExternalAmount(uint256 _extAmount) public pure returns (int256) {
-    // -MAX_EXT_AMOUNT < extAmount < MAX_EXT_AMOUNT
-    if (_extAmount < MAX_EXT_AMOUNT) {
-      return int256(_extAmount);
-    } else if (_extAmount > FIELD_SIZE - MAX_EXT_AMOUNT) {
-      // FIELD_SIZE - MAX_EXT_AMOUNT < _extAmount < FIELD_SIZE
-      return -(int256(FIELD_SIZE) - int256(_extAmount));
-    } else {
-      revert("Invalid extAmount value");
     }
   }
 
