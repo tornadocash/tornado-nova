@@ -14,15 +14,19 @@ const FIELD_SIZE = BigNumber.from(
 /** Generate random number of specified byte length */
 const randomBN = (nbytes = 31) => BigNumber.from(crypto.randomBytes(nbytes))
 
-function getExtDataHash({ recipient, relayer, encryptedOutput1, encryptedOutput2 }) {
+function getExtDataHash({ recipient, extAmount, relayer, fee, encryptedOutput1, encryptedOutput2 }) {
   const abi = new ethers.utils.AbiCoder()
 
   const encodedData = abi.encode(
-    ['tuple(address recipient,address relayer,bytes encryptedOutput1,bytes encryptedOutput2)'],
+    [
+      'tuple(address recipient,int256 extAmount,address relayer,uint256 fee,bytes encryptedOutput1,bytes encryptedOutput2)',
+    ],
     [
       {
         recipient: toFixedHex(recipient, 20),
+        extAmount: toFixedHex(extAmount),
         relayer: toFixedHex(relayer, 20),
+        fee: toFixedHex(fee),
         encryptedOutput1: encryptedOutput1,
         encryptedOutput2: encryptedOutput2,
       },
@@ -33,12 +37,18 @@ function getExtDataHash({ recipient, relayer, encryptedOutput1, encryptedOutput2
 }
 
 /** BigNumber to hex string of specified length */
-const toFixedHex = (number, length = 32) =>
-  '0x' +
-  (number instanceof Buffer
-    ? number.toString('hex')
-    : BigNumber.from(number).toHexString().slice(2)
-  ).padStart(length * 2, '0')
+function toFixedHex(number, length = 32) {
+  let result =
+    '0x' +
+    (number instanceof Buffer
+      ? number.toString('hex')
+      : BigNumber.from(number).toHexString().replace('0x', '')
+    ).padStart(length * 2, '0')
+  if (result.indexOf('-') > -1) {
+    result = '-' + result.replace('-', '')
+  }
+  return result
+}
 
 /** Convert value into buffer of specified byte length */
 const toBuffer = (value, length) =>

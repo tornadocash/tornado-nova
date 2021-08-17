@@ -18,10 +18,10 @@ nullifier = hash(commitment, privKey, merklePath)
 template Transaction(levels, nIns, nOuts, zeroLeaf) {
     signal input root;
     signal input newRoot;
-    // external amount used for deposits and withdrawals
+    // extAmount = external amount used for deposits and withdrawals
     // correct extAmount range is enforced on the smart contract
-    signal input extAmount;
-    signal input fee;
+    // publicAmount = fee - extAmount
+    signal input publicAmount;
     signal input extDataHash;
 
     // data for transaction inputs
@@ -103,10 +103,6 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
         sumOuts += outAmount[tx];
     }
 
-    // Check that fee fits into 248 bits to prevent overflow
-    component feeCheck = Num2Bits(248);
-    feeCheck.in <== fee;
-
     // check that there are no same nullifiers among all inputs
     component sameNullifiers[nIns * (nIns - 1) / 2];
     var index = 0;
@@ -121,10 +117,10 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     }
 
     // verify amount invariant
-    sumIns + extAmount === sumOuts + fee;
+    sumIns + publicAmount === sumOuts;
 
     // Check merkle tree update with inserted transaction outputs
-    component treeUpdater = TreeUpdater(levels, zeroLeaf);
+    component treeUpdater = TreeUpdater(levels, 1 /* log2(nOuts) */, zeroLeaf);
     treeUpdater.oldRoot <== root;
     treeUpdater.newRoot <== newRoot;
     for (var i = 0; i < nOuts; i++) {

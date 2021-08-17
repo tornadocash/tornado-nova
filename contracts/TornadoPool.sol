@@ -15,9 +15,9 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
 
 interface IVerifier {
-  function verifyProof(bytes memory _proof, uint256[10] memory _input) external view returns (bool);
+  function verifyProof(bytes memory _proof, uint256[9] memory _input) external view returns (bool);
 
-  function verifyProof(bytes memory _proof, uint256[24] memory _input) external view returns (bool);
+  function verifyProof(bytes memory _proof, uint256[23] memory _input) external view returns (bool);
 }
 
 interface ERC20 {
@@ -26,7 +26,8 @@ interface ERC20 {
 
 contract TornadoPool is Initializable {
   uint256 public constant FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-  uint256 public constant MAX_EXT_AMOUNT = 2**248 - 1;
+  int256 public constant MAX_EXT_AMOUNT = 2**248;
+  uint256 public constant MAX_FEE = 2**248;
 
   mapping(bytes32 => bool) public nullifierHashes;
   bytes32 public currentRoot;
@@ -36,7 +37,9 @@ contract TornadoPool is Initializable {
 
   struct ExtData {
     address payable recipient;
+    int256 extAmount;
     address payable relayer;
+    uint256 fee;
     bytes encryptedOutput1;
     bytes encryptedOutput2;
   }
@@ -48,8 +51,7 @@ contract TornadoPool is Initializable {
     bytes32[] inputNullifiers;
     bytes32[2] outputCommitments;
     uint256 outPathIndices;
-    uint256 extAmount;
-    uint256 fee;
+    uint256 publicAmount;
     bytes32 extDataHash;
   }
 
@@ -83,33 +85,35 @@ contract TornadoPool is Initializable {
       require(!isSpent(_args.inputNullifiers[i]), "Input is already spent");
     }
     require(uint256(_args.extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
-    require(_args.outPathIndices == currentCommitmentIndex >> 1, "Invalid merkle tree insert position");
+    uint256 cachedCommitmentIndex = currentCommitmentIndex;
+    require(_args.outPathIndices == cachedCommitmentIndex >> 1, "Invalid merkle tree insert position");
+    require(_args.publicAmount == calculatePublicAmount(_extData.extAmount, _extData.fee), "Invalid public amount");
     require(verifyProof(_args), "Invalid transaction proof");
 
     currentRoot = _args.newRoot;
+    currentCommitmentIndex = cachedCommitmentIndex + 2;
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       nullifierHashes[_args.inputNullifiers[i]] = true;
     }
 
-    int256 extAmount = calculateExternalAmount(_args.extAmount);
-    if (extAmount > 0) {
-      require(msg.value == uint256(_args.extAmount), "Incorrect amount of ETH sent on deposit");
-    } else if (extAmount < 0) {
+    if (_extData.extAmount > 0) {
+      require(msg.value == uint256(_extData.extAmount), "Incorrect amount of ETH sent on deposit");
+    } else if (_extData.extAmount < 0) {
       require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
       require(_extData.recipient != address(0), "Can't withdraw to zero address");
       // _extData.recipient.transfer(uint256(-extAmount));
-      _transfer(_extData.recipient, uint256(-extAmount));
+      _transfer(_extData.recipient, uint256(-_extData.extAmount));
     } else {
       require(msg.value == 0, "Sent ETH amount should be 0 for transaction");
     }
 
-    if (_args.fee > 0) {
+    if (_extData.fee > 0) {
       // _extData.relayer.transfer(_args.fee);
-      _transfer(_extData.relayer, _args.fee);
+      _transfer(_extData.relayer, _extData.fee);
     }
 
-    emit NewCommitment(_args.outputCommitments[0], currentCommitmentIndex++, _extData.encryptedOutput1);
-    emit NewCommitment(_args.outputCommitments[1], currentCommitmentIndex++, _extData.encryptedOutput2);
+    emit NewCommitment(_args.outputCommitments[0], cachedCommitmentIndex, _extData.encryptedOutput1);
+    emit NewCommitment(_args.outputCommitments[1], cachedCommitmentIndex + 1, _extData.encryptedOutput2);
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       emit NewNullifier(_args.inputNullifiers[i]);
     }
@@ -127,16 +131,11 @@ contract TornadoPool is Initializable {
     }
   }
 
-  function calculateExternalAmount(uint256 _extAmount) public pure returns (int256) {
-    // -MAX_EXT_AMOUNT < extAmount < MAX_EXT_AMOUNT
-    if (_extAmount < MAX_EXT_AMOUNT) {
-      return int256(_extAmount);
-    } else if (_extAmount > FIELD_SIZE - MAX_EXT_AMOUNT) {
-      // FIELD_SIZE - MAX_EXT_AMOUNT < _extAmount < FIELD_SIZE
-      return -(int256(FIELD_SIZE) - int256(_extAmount));
-    } else {
-      revert("Invalid extAmount value");
-    }
+  function calculatePublicAmount(int256 _extAmount, uint256 _fee) public pure returns(uint256) {
+    require(_fee < MAX_FEE, "Invalid fee");
+    require(_extAmount > -MAX_EXT_AMOUNT && _extAmount < MAX_EXT_AMOUNT, "Invalid ext amount");
+    int256 publicAmount = _extAmount - int256(_fee);
+    return (publicAmount >= 0) ? uint256(publicAmount) : FIELD_SIZE - uint256(-publicAmount);
   }
 
   /** @dev whether a note is already spent */
@@ -152,8 +151,7 @@ contract TornadoPool is Initializable {
           [
             uint256(_args.root),
             uint256(_args.newRoot),
-            _args.extAmount,
-            _args.fee,
+            _args.publicAmount,
             uint256(_args.extDataHash),
             uint256(_args.inputNullifiers[0]),
             uint256(_args.inputNullifiers[1]),
@@ -169,8 +167,7 @@ contract TornadoPool is Initializable {
           [
             uint256(_args.root),
             uint256(_args.newRoot),
-            _args.extAmount,
-            _args.fee,
+            _args.publicAmount,
             uint256(_args.extDataHash),
             uint256(_args.inputNullifiers[0]),
             uint256(_args.inputNullifiers[1]),
