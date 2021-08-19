@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: 14
       - run: yarn cache clean --all
-      - run: yarn install --network-timeout 100000
+      - run: yarn install --network-concurrency 1
       - run: yarn lint
       - run: yarn download
       - run: yarn build
