@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: 14
       - run: yarn cache clean --all
-      - run: yarn install
+      - run: yarn install --skip-integrity-check
       - run: yarn lint
       - run: yarn download
       - run: yarn build
