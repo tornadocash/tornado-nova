@@ -101,14 +101,12 @@ contract TornadoPool is Initializable {
     } else if (_extData.extAmount < 0) {
       require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
       require(_extData.recipient != address(0), "Can't withdraw to zero address");
-      // _extData.recipient.transfer(uint256(-extAmount));
       _transfer(_extData.recipient, uint256(-_extData.extAmount));
     } else {
       require(msg.value == 0, "Sent ETH amount should be 0 for transaction");
     }
 
     if (_extData.fee > 0) {
-      // _extData.relayer.transfer(_args.fee);
       _transfer(_extData.relayer, _extData.fee);
     }
 
