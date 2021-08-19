@@ -1,3 +1,4 @@
+/* eslint-disable indent */
 require('@nomiclabs/hardhat-waffle')
 require('@eth-optimism/hardhat-ovm')
 require('dotenv').config()

@@ -57,7 +57,7 @@ describe('TornadoPool', () => {
       await proxy
         .admin()
         .should.be.revertedWith(
-          "Transaction reverted: function selector was not recognized and there's no fallback function",
+          'Transaction reverted: function selector was not recognized and there is no fallback function',
         )
     })
   })

@@ -1,5 +1,7 @@
 .vscode
 .idea
 artifacts
+artifacts-ovm
 cache
+cache-ovm
 contracts/Verifier*.sol
