@@ -20,7 +20,7 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     signal input newRoot;
     // extAmount = external amount used for deposits and withdrawals
     // correct extAmount range is enforced on the smart contract
-    // publicAmount = fee - extAmount
+    // publicAmount = extAmount - fee
     signal input publicAmount;
     signal input extDataHash;
 
