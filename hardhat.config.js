@@ -26,7 +26,7 @@ const config = {
     //       },
     // },
     optimism: {
-      url: process.env.ETH_RPC,
+      url: process.env.ETH_RPC || 'https://mainnet.optimism.io',
       accounts: process.env.PRIVATE_KEY
         ? [process.env.PRIVATE_KEY]
         : {
