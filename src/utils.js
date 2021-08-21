@@ -75,13 +75,6 @@ function shuffle(array) {
 
   return array
 }
-async function takeSnapshot() {
-  return await ethers.provider.send('evm_snapshot', [])
-}
-
-async function revertSnapshot(id) {
-  await ethers.provider.send('evm_revert', [id])
-}
 
 module.exports = {
   FIELD_SIZE,
@@ -91,7 +84,5 @@ module.exports = {
   poseidonHash,
   poseidonHash2,
   getExtDataHash,
-  takeSnapshot,
-  revertSnapshot,
   shuffle,
 }
