@@ -1,4 +1,5 @@
-/* global ethers */
+const hre = require('hardhat')
+const ethers = hre.ethers
 const { expect, should } = require('chai')
 should()
 
@@ -11,8 +12,11 @@ const MerkleTree = require('fixed-merkle-tree')
 const { transaction, registerAndTransact } = require('../src/index')
 const { Keypair } = require('../src/keypair')
 
-describe('TornadoPool', () => {
-  let snapshotId, tornadoPool, sender
+describe('TornadoPool', function () {
+  this.timeout(20000)
+  let snapshotId, sender
+  /** @type {TornadoPool} */
+  let tornadoPool
 
   /* prettier-ignore */
   before(async function () {

@@ -1,3 +1,5 @@
+require('@typechain/hardhat')
+require('@nomiclabs/hardhat-ethers')
 require('@nomiclabs/hardhat-waffle')
 require('dotenv').config()
 
@@ -23,6 +25,9 @@ const config = {
   },
   mocha: {
     timeout: 600000000,
+  },
+  typechain: {
+    outDir: 'src/types',
   },
 }
 

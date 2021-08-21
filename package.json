@@ -24,6 +24,8 @@
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin/contracts": "^3.4.0",
+    "@typechain/ethers-v5": "^7.0.1",
+    "@typechain/hardhat": "^2.3.0",
     "bignumber.js": "^9.0.0",
     "chai": "^4.3.4",
     "circom": "^0.5.45",
@@ -37,8 +39,10 @@
     "ffjavascript": "^0.2.36",
     "fixed-merkle-tree": "^0.5.1",
     "hardhat": "^2.3.0",
+    "mocha": "^9.1.0",
     "snarkjs": "git+https://github.com/tornadocash/snarkjs.git#616c2d30699f28c8f3ab737b877402ccbb604cfe",
-    "tmp-promise": "^3.0.2"
+    "tmp-promise": "^3.0.2",
+    "typechain": "^5.1.2"
   },
   "devDependencies": {
     "babel-eslint": "^10.1.0",
