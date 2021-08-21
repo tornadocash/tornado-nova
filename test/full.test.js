@@ -18,24 +18,23 @@ describe('TornadoPool', function () {
   async function deploy(contractName, ...args) {
     const Factory = await ethers.getContractFactory(contractName)
     const instance = await Factory.deploy(...args)
-    await instance.deployed()
-
-    return instance
+    return instance.deployed()
   }
 
   async function fixture() {
-    const [deployer] = await ethers.getSigners()
-
     const verifier2 = await deploy('Verifier2')
-
     const verifier16 = await deploy('Verifier16')
 
     const tree = new MerkleTree(MERKLE_TREE_HEIGHT, [], { hashFunction: poseidonHash2 })
-    const root = await tree.root()
     /** @type {TornadoPool} */
-    const tornadoPool = await deploy('TornadoPool', verifier2.address, verifier16.address, toFixedHex(root))
+    const tornadoPool = await deploy(
+      'TornadoPool',
+      verifier2.address,
+      verifier16.address,
+      toFixedHex(tree.root()),
+    )
 
-    return { tornadoPool, deployer }
+    return { tornadoPool }
   }
 
   it('encrypt -> decrypt should work', () => {
