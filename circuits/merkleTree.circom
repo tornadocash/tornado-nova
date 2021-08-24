@@ -1,30 +1,32 @@
 include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/switcher.circom";
 
-// Verifies that merkle proof is correct for given merkle root and a leaf
-// pathIndices input is an array of 0/1 selectors telling whether given pathElement is on the left or right side of merkle path
+// Helper template that computes hashes of the next tree layer
+template TreeLayer(height) {
+  var nItems = 1 << height;
+  signal input ins[nItems * 2];
+  signal output outs[nItems];
+
+  component hash[nItems];
+  for(var i = 0; i < nItems; i++) {
+    hash[i] = Poseidon(2);
+    hash[i].inputs[0] <== ins[i * 2];
+    hash[i].inputs[1] <== ins[i * 2 + 1];
+    hash[i].out ==> outs[i];
+  }
+}
+
+// Builds a merkle tree from leaf array
 template MerkleTree(levels) {
-    signal input leaf;
-    signal input pathElements[levels];
-    signal input pathIndices;
-    signal output root;
+  signal input leaves[1 << levels];
+  signal output root;
 
-    component switcher[levels];
-    component hasher[levels];
-
-    component indexBits = Num2Bits(levels);
-    indexBits.in <== pathIndices;
-
-    for (var i = 0; i < levels; i++) {
-        switcher[i] = Switcher();
-        switcher[i].L <== i == 0 ? leaf : hasher[i - 1].out;
-        switcher[i].R <== pathElements[i];
-        switcher[i].sel <== indexBits.out[i];
-
-        hasher[i] = Poseidon(2);
-        hasher[i].inputs[0] <== switcher[i].outL;
-        hasher[i].inputs[1] <== switcher[i].outR;
+  component layers[levels];
+  for(var level = levels - 1; level >= 0; level--) {
+    layers[level] = TreeLayer(level);
+    for(var i = 0; i < (1 << (level + 1)); i++) {
+      layers[level].ins[i] <== level == levels - 1 ? leaves[i] : layers[level + 1].outs[i];
     }
+  }
 
-    root <== hasher[levels - 1].out;
+  root <== levels > 0 ? layers[0].outs[0] : leaves[0];
 }
