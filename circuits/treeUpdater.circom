@@ -17,9 +17,9 @@ template TreeUpdater(levels, subtreeLevels, zeroSubtreeRoot) {
     // calculate subtree root
     // todo: make it work with arbitrary subtree levels
     // currently it works only with 1-level subtrees
-    component leafPair = HashLeftRight();
-    leafPair.left <== leaf[0];
-    leafPair.right <== leaf[1];
+    component leafPair = Poseidon(2);
+    leafPair.inputs[0] <== leaf[0];
+    leafPair.inputs[1] <== leaf[1];
 
     component treeBefore = MerkleTree(remainingLevels);
     for(var i = 0; i < remainingLevels; i++) {
@@ -34,6 +34,6 @@ template TreeUpdater(levels, subtreeLevels, zeroSubtreeRoot) {
         treeAfter.pathElements[i] <== pathElements[i];
     }
     treeAfter.pathIndices <== pathIndices;
-    treeAfter.leaf <== leafPair.hash;
+    treeAfter.leaf <== leafPair.out;
     treeAfter.root === newRoot;
 }
