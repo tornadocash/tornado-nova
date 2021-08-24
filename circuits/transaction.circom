@@ -1,4 +1,4 @@
-include "./merkleTree.circom"
+include "./merkleProof.circom"
 include "./treeUpdater.circom"
 include "./utils.circom"
 
@@ -64,7 +64,7 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
         nullifierHasher[tx].privateKey <== inPrivateKey[tx];
         nullifierHasher[tx].nullifier === inputNullifier[tx];
 
-        tree[tx] = MerkleTree(levels);
+        tree[tx] = MerkleProof(levels);
         tree[tx].leaf <== inUtxoHasher[tx].commitment;
         tree[tx].pathIndices <== inPathIndices[tx];
         for (var i = 0; i < levels; i++) {
@@ -124,7 +124,7 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     treeUpdater.oldRoot <== root;
     treeUpdater.newRoot <== newRoot;
     for (var i = 0; i < nOuts; i++) {
-      treeUpdater.leaf[i] <== outputCommitment[i];
+      treeUpdater.leaves[i] <== outputCommitment[i];
     }
     treeUpdater.pathIndices <== outPathIndices;
     for (var i = 0; i < levels - 1; i++) {
