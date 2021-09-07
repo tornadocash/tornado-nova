@@ -12,6 +12,7 @@
 
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
+import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
 
 interface IVerifier {
   function verifyProof(bytes memory _proof, uint256[9] memory _input) external view returns (bool);
@@ -19,7 +20,11 @@ interface IVerifier {
   function verifyProof(bytes memory _proof, uint256[23] memory _input) external view returns (bool);
 }
 
-contract TornadoPool {
+interface ERC20 {
+  function transfer(address to, uint256 value) external returns (bool);
+}
+
+contract TornadoPool is Initializable {
   uint256 public constant FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   int256 public constant MAX_EXT_AMOUNT = 2**248;
   uint256 public constant MAX_FEE = 2**248;
@@ -65,13 +70,12 @@ contract TornadoPool {
     @param _verifier2 the address of SNARK verifier for 2 inputs
     @param _verifier16 the address of SNARK verifier for 16 inputs
   */
-  constructor(
-    IVerifier _verifier2,
-    IVerifier _verifier16,
-    bytes32 _currentRoot
-  ) {
+  constructor(IVerifier _verifier2, IVerifier _verifier16) {
     verifier2 = _verifier2;
     verifier16 = _verifier16;
+  }
+
+  function initialize(bytes32 _currentRoot) external initializer {
     currentRoot = _currentRoot;
   }
 
@@ -97,19 +101,31 @@ contract TornadoPool {
     } else if (_extData.extAmount < 0) {
       require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
       require(_extData.recipient != address(0), "Can't withdraw to zero address");
-      _extData.recipient.transfer(uint256(-_extData.extAmount));
+      _transfer(_extData.recipient, uint256(-_extData.extAmount));
     } else {
       require(msg.value == 0, "Sent ETH amount should be 0 for transaction");
     }
 
     if (_extData.fee > 0) {
-      _extData.relayer.transfer(_extData.fee);
+      _transfer(_extData.relayer, _extData.fee);
     }
 
     emit NewCommitment(_args.outputCommitments[0], cachedCommitmentIndex, _extData.encryptedOutput1);
     emit NewCommitment(_args.outputCommitments[1], cachedCommitmentIndex + 1, _extData.encryptedOutput2);
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       emit NewNullifier(_args.inputNullifiers[i]);
+    }
+  }
+
+  function _transfer(address payable _to, uint256 _amount) internal {
+    uint256 id;
+    assembly {
+      id := chainid()
+    }
+    if (id == 10) {
+      ERC20(0x4200000000000000000000000000000000000006).transfer(_to, _amount);
+    } else {
+      _to.transfer(_amount);
     }
   }
 

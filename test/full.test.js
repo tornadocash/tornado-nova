@@ -14,6 +14,7 @@ const { Keypair } = require('../src/keypair')
 
 describe('TornadoPool', function () {
   this.timeout(20000)
+  let gov, messenger
 
   async function deploy(contractName, ...args) {
     const Factory = await ethers.getContractFactory(contractName)
@@ -22,20 +23,56 @@ describe('TornadoPool', function () {
   }
 
   async function fixture() {
+    ;[, gov] = await ethers.getSigners()
     const verifier2 = await deploy('Verifier2')
     const verifier16 = await deploy('Verifier16')
 
     const tree = new MerkleTree(MERKLE_TREE_HEIGHT, [], { hashFunction: poseidonHash2 })
-    /** @type {TornadoPool} */
-    const tornadoPool = await deploy(
-      'TornadoPool',
-      verifier2.address,
-      verifier16.address,
-      toFixedHex(tree.root()),
-    )
+    const root = await tree.root()
 
+    const Pool = await ethers.getContractFactory('TornadoPool')
+    const tornadoPoolImpl = await Pool.deploy(verifier2.address, verifier16.address)
+
+    const OVM_Messenger = await ethers.getContractFactory('MockOVM_CrossDomainMessenger')
+    messenger = await OVM_Messenger.deploy(gov.address)
+    await messenger.deployed()
+
+    const CrossChainUpgradeableProxy = await ethers.getContractFactory('CrossChainUpgradeableProxy')
+    const proxy = await CrossChainUpgradeableProxy.deploy(
+      tornadoPoolImpl.address,
+      gov.address,
+      [],
+      messenger.address,
+    )
+    await proxy.deployed()
+
+    /** @type {TornadoPool} */
+    const tornadoPool = Pool.attach(proxy.address)
+
+    await tornadoPool.initialize(toFixedHex(root))
     return { tornadoPool }
   }
+
+  describe('Upgradeability tests', () => {
+    let tornadoPool, proxy
+    before(async () => {
+      ;({ tornadoPool } = await loadFixture(fixture))
+      const CrossChainUpgradeableProxy = await ethers.getContractFactory('CrossChainUpgradeableProxy')
+      proxy = CrossChainUpgradeableProxy.attach(tornadoPool.address)
+    })
+
+    it('admin should be gov', async () => {
+      const { data } = await proxy.populateTransaction.admin()
+      const { result } = await messenger.callStatic.execute(proxy.address, data)
+      expect('0x' + result.slice(26)).to.be.equal(gov.address.toLowerCase())
+    })
+
+    it('non admin cannot call', async () => {
+      await expect(proxy.admin()).to.be.revertedWith(
+        "Transaction reverted: function selector was not recognized and there's no fallback function",
+      )
+    })
+  })
 
   it('encrypt -> decrypt should work', () => {
     const data = Buffer.from([0xff, 0xaa, 0x00, 0x01])
@@ -57,7 +94,7 @@ describe('TornadoPool', function () {
 
   it('should register and deposit', async function () {
     let { tornadoPool } = await loadFixture(fixture)
-    const sender = (await ethers.getSigners())[1]
+    const sender = (await ethers.getSigners())[0]
 
     // Alice deposits into tornado pool
     const aliceDepositAmount = 1e7

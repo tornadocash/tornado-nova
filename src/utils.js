@@ -1,3 +1,4 @@
+/* global network */
 const crypto = require('crypto')
 const { ethers } = require('hardhat')
 const BigNumber = ethers.BigNumber
@@ -76,6 +77,15 @@ function shuffle(array) {
   return array
 }
 
+async function getSignerFromAddress(address) {
+  await network.provider.request({
+    method: 'hardhat_impersonateAccount',
+    params: [address],
+  })
+
+  return await ethers.provider.getSigner(address)
+}
+
 module.exports = {
   FIELD_SIZE,
   randomBN,
@@ -85,4 +95,5 @@ module.exports = {
   poseidonHash2,
   getExtDataHash,
   shuffle,
+  getSignerFromAddress,
 }

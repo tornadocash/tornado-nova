@@ -10,6 +10,7 @@
     "circuit": "./scripts/buildCircuit.sh 2 && ./scripts/buildCircuit.sh 16",
     "compile": "npx hardhat compile",
     "build": "npm run circuit && npm run compile",
+    "deploy": "npx hardhat run scripts/deploy.js --network optimism",
     "download": "curl -L https://github.com/tornadocash/tornado-pool/releases/download/tmp/ptau15 --create-dirs -o artifacts/circuits/ptau15",
     "test": "npx hardhat test",
     "eslint": "eslint --ext .js --ignore-path .gitignore .",
@@ -23,7 +24,8 @@
   "dependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
-    "@openzeppelin/contracts": "^3.4.0",
+    "@openzeppelin/contracts": "git+https://github.com/tornadocash/openzeppelin-contracts.git#6e46aa6946a7f215e7604169ddf46e1aebea850f",
+    "@openzeppelin/contracts-upgradeable": "3.4.1",
     "@typechain/ethers-v5": "^7.0.1",
     "@typechain/hardhat": "^2.3.0",
     "bignumber.js": "^9.0.0",
@@ -45,6 +47,7 @@
     "typechain": "^5.1.2"
   },
   "devDependencies": {
+    "@eth-optimism/hardhat-ovm": "^0.2.2",
     "babel-eslint": "^10.1.0",
     "eslint": "^7.28.0",
     "eslint-config-prettier": "^8.3.0",

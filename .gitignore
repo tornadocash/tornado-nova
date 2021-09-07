@@ -3,4 +3,6 @@ node_modules
 build
 cache
 artifacts
+artifacts-ovm
+cache-ovm
 src/types

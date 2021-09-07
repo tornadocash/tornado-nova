@@ -130,6 +130,5 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
         treeUpdater.pathElements[i] <== outPathElements[i];
     }
 
-    signal extDataSquare;
-    extDataSquare <== extDataHash * extDataHash;
+    signal extDataSquare <== extDataHash * extDataHash;
 }

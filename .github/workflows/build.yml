@@ -4,7 +4,6 @@ on:
   push:
     branches: ['*']
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
-  pull_request:
 
 jobs:
   build:
@@ -15,7 +14,8 @@ jobs:
       - uses: actions/setup-node@v1
         with:
           node-version: 14
-      - run: yarn install
+      - run: yarn cache clean --all
+      - run: yarn install --network-concurrency 1
       - run: yarn lint
       - run: yarn download
       - run: yarn build
