@@ -14,7 +14,7 @@ const { Keypair } = require('../src/keypair')
 
 describe('TornadoPool', function () {
   this.timeout(20000)
-  let tornadoPool, sender, gov, messenger
+  let gov, messenger
 
   async function deploy(contractName, ...args) {
     const Factory = await ethers.getContractFactory(contractName)
@@ -23,7 +23,7 @@ describe('TornadoPool', function () {
   }
 
   async function fixture() {
-    ;[sender, gov] = await ethers.getSigners()
+    ;[, gov] = await ethers.getSigners()
     const verifier2 = await deploy('Verifier2')
     const verifier16 = await deploy('Verifier16')
 
@@ -38,7 +38,7 @@ describe('TornadoPool', function () {
     await messenger.deployed()
 
     const CrossChainUpgradeableProxy = await ethers.getContractFactory('CrossChainUpgradeableProxy')
-    proxy = await CrossChainUpgradeableProxy.deploy(
+    const proxy = await CrossChainUpgradeableProxy.deploy(
       tornadoPoolImpl.address,
       gov.address,
       [],
@@ -47,7 +47,7 @@ describe('TornadoPool', function () {
     await proxy.deployed()
 
     /** @type {TornadoPool} */
-    tornadoPool = Pool.attach(proxy.address)
+    const tornadoPool = Pool.attach(proxy.address)
 
     await tornadoPool.initialize(toFixedHex(root))
     return { tornadoPool }
