@@ -1,4 +1,6 @@
 /* eslint-disable indent */
+require('@typechain/hardhat')
+require('@nomiclabs/hardhat-ethers')
 require('@nomiclabs/hardhat-waffle')
 require('@eth-optimism/hardhat-ovm')
 require('dotenv').config()
@@ -41,6 +43,9 @@ const config = {
   },
   mocha: {
     timeout: 600000000,
+  },
+  typechain: {
+    outDir: 'src/types',
   },
 }
 

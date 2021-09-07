@@ -76,13 +76,6 @@ function shuffle(array) {
 
   return array
 }
-async function takeSnapshot() {
-  return await ethers.provider.send('evm_snapshot', [])
-}
-
-async function revertSnapshot(id) {
-  await ethers.provider.send('evm_revert', [id])
-}
 
 async function getSignerFromAddress(address) {
   await network.provider.request({
@@ -101,8 +94,6 @@ module.exports = {
   poseidonHash,
   poseidonHash2,
   getExtDataHash,
-  takeSnapshot,
-  revertSnapshot,
   shuffle,
   getSignerFromAddress,
 }

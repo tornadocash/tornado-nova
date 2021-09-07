@@ -1,8 +1,9 @@
-/* global ethers */
-const { expect, should } = require('chai')
-should()
+const hre = require('hardhat')
+const { ethers, waffle } = hre
+const { loadFixture } = waffle
+const { expect } = require('chai')
 
-const { poseidonHash2, toFixedHex, takeSnapshot, revertSnapshot } = require('../src/utils')
+const { poseidonHash2, toFixedHex } = require('../src/utils')
 const Utxo = require('../src/utxo')
 
 const MERKLE_TREE_HEIGHT = 5
@@ -11,20 +12,20 @@ const MerkleTree = require('fixed-merkle-tree')
 const { transaction, registerAndTransact } = require('../src/index')
 const { Keypair } = require('../src/keypair')
 
-describe('TornadoPool', () => {
-  let snapshotId, tornadoPool, sender, gov, proxy, messenger
+describe('TornadoPool', function () {
+  this.timeout(20000)
+  let tornadoPool, sender, gov, messenger
 
-  /* prettier-ignore */
-  before(async function () {
+  async function deploy(contractName, ...args) {
+    const Factory = await ethers.getContractFactory(contractName)
+    const instance = await Factory.deploy(...args)
+    return instance.deployed()
+  }
+
+  async function fixture() {
     ;[sender, gov] = await ethers.getSigners()
-
-    const Verifier2 = await ethers.getContractFactory('Verifier2')
-    const verifier2 = await Verifier2.deploy()
-    await verifier2.deployed()
-
-    const Verifier16 = await ethers.getContractFactory('Verifier16')
-    const verifier16 = await Verifier16.deploy()
-    await verifier16.deployed()
+    const verifier2 = await deploy('Verifier2')
+    const verifier16 = await deploy('Verifier16')
 
     const tree = new MerkleTree(MERKLE_TREE_HEIGHT, [], { hashFunction: poseidonHash2 })
     const root = await tree.root()
@@ -37,16 +38,29 @@ describe('TornadoPool', () => {
     await messenger.deployed()
 
     const CrossChainUpgradeableProxy = await ethers.getContractFactory('CrossChainUpgradeableProxy')
-    proxy = await CrossChainUpgradeableProxy.deploy(tornadoPoolImpl.address, gov.address, [], messenger.address)
+    proxy = await CrossChainUpgradeableProxy.deploy(
+      tornadoPoolImpl.address,
+      gov.address,
+      [],
+      messenger.address,
+    )
     await proxy.deployed()
 
-    tornadoPool = await Pool.attach(proxy.address)
+    /** @type {TornadoPool} */
+    tornadoPool = Pool.attach(proxy.address)
 
     await tornadoPool.initialize(toFixedHex(root))
+    return { tornadoPool }
+  }
 
-    snapshotId = await takeSnapshot()
-  })
   describe('Upgradeability tests', () => {
+    let tornadoPool, proxy
+    before(async () => {
+      ;({ tornadoPool } = await loadFixture(fixture))
+      const CrossChainUpgradeableProxy = await ethers.getContractFactory('CrossChainUpgradeableProxy')
+      proxy = CrossChainUpgradeableProxy.attach(tornadoPool.address)
+    })
+
     it('admin should be gov', async () => {
       const { data } = await proxy.populateTransaction.admin()
       const { result } = await messenger.callStatic.execute(proxy.address, data)
@@ -54,11 +68,9 @@ describe('TornadoPool', () => {
     })
 
     it('non admin cannot call', async () => {
-      await proxy
-        .admin()
-        .should.be.revertedWith(
-          "Transaction reverted: function selector was not recognized and there's no fallback function",
-        )
+      await expect(proxy.admin()).to.be.revertedWith(
+        "Transaction reverted: function selector was not recognized and there's no fallback function",
+      )
     })
   })
 
@@ -72,6 +84,7 @@ describe('TornadoPool', () => {
   })
 
   it('constants check', async () => {
+    const { tornadoPool } = await loadFixture(fixture)
     const maxFee = await tornadoPool.MAX_FEE()
     const maxExtAmount = await tornadoPool.MAX_EXT_AMOUNT()
     const fieldSize = await tornadoPool.FIELD_SIZE()
@@ -80,6 +93,9 @@ describe('TornadoPool', () => {
   })
 
   it('should register and deposit', async function () {
+    let { tornadoPool } = await loadFixture(fixture)
+    const sender = (await ethers.getSigners())[0]
+
     // Alice deposits into tornado pool
     const aliceDepositAmount = 1e7
     const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount })
@@ -138,6 +154,8 @@ describe('TornadoPool', () => {
   })
 
   it('should deposit, transact and withdraw', async function () {
+    const { tornadoPool } = await loadFixture(fixture)
+
     // Alice deposits into tornado pool
     const aliceDepositAmount = 1e7
     const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount })
@@ -185,11 +203,7 @@ describe('TornadoPool', () => {
   })
 
   it('should work with 16 inputs', async function () {
+    const { tornadoPool } = await loadFixture(fixture)
     await transaction({ tornadoPool, inputs: [new Utxo(), new Utxo(), new Utxo()] })
-  })
-
-  afterEach(async () => {
-    await revertSnapshot(snapshotId)
-    snapshotId = await takeSnapshot()
   })
 })

@@ -1,4 +1,4 @@
-include "./merkleTree.circom"
+include "./merkleProof.circom"
 include "./treeUpdater.circom"
 include "./utils.circom"
 
@@ -43,7 +43,6 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     component inKeypair[nIns];
     component inUtxoHasher[nIns];
     component nullifierHasher[nIns];
-    component inAmountCheck[nIns];
     component tree[nIns];
     component checkRoot[nIns];
     var sumIns = 0;
@@ -64,7 +63,7 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
         nullifierHasher[tx].privateKey <== inPrivateKey[tx];
         nullifierHasher[tx].nullifier === inputNullifier[tx];
 
-        tree[tx] = MerkleTree(levels);
+        tree[tx] = MerkleProof(levels);
         tree[tx].leaf <== inUtxoHasher[tx].commitment;
         tree[tx].pathIndices <== inPathIndices[tx];
         for (var i = 0; i < levels; i++) {
@@ -77,9 +76,9 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
         checkRoot[tx].in[1] <== tree[tx].root;
         checkRoot[tx].enabled <== inAmount[tx];
 
-        // Check that amount fits into 248 bits to prevent overflow
-        inAmountCheck[tx] = Num2Bits(248);
-        inAmountCheck[tx].in <== inAmount[tx];
+        // We don't need to range check input amounts, since all inputs are valid UTXOs that 
+        // were already checked as outputs in the previous transaction (or zero amount UTXOs that don't 
+        // need to be checked either).
 
         sumIns += inAmount[tx];
     }
@@ -124,7 +123,7 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     treeUpdater.oldRoot <== root;
     treeUpdater.newRoot <== newRoot;
     for (var i = 0; i < nOuts; i++) {
-      treeUpdater.leaf[i] <== outputCommitment[i];
+      treeUpdater.leaves[i] <== outputCommitment[i];
     }
     treeUpdater.pathIndices <== outPathIndices;
     for (var i = 0; i < levels - 1; i++) {

@@ -16,7 +16,6 @@ template TransactionHasher() {
     signal input amount;
     signal input blinding;
     signal input publicKey;
-
     signal output commitment;
 
     component hasher = Poseidon(3);
@@ -27,10 +26,9 @@ template TransactionHasher() {
 }
 
 template NullifierHasher() {
-    signal input privateKey;
-    signal input merklePath;
     signal input commitment;
-
+    signal input merklePath;
+    signal input privateKey;
     signal output nullifier;
 
     component hasher = Poseidon(3);

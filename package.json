@@ -26,6 +26,8 @@
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin/contracts": "git+https://github.com/tornadocash/openzeppelin-contracts.git#6e46aa6946a7f215e7604169ddf46e1aebea850f",
     "@openzeppelin/contracts-upgradeable": "3.4.1",
+    "@typechain/ethers-v5": "^7.0.1",
+    "@typechain/hardhat": "^2.3.0",
     "bignumber.js": "^9.0.0",
     "chai": "^4.3.4",
     "circom": "^0.5.45",
@@ -39,8 +41,10 @@
     "ffjavascript": "^0.2.36",
     "fixed-merkle-tree": "^0.5.1",
     "hardhat": "^2.3.0",
+    "mocha": "^9.1.0",
     "snarkjs": "git+https://github.com/tornadocash/snarkjs.git#616c2d30699f28c8f3ab737b877402ccbb604cfe",
-    "tmp-promise": "^3.0.2"
+    "tmp-promise": "^3.0.2",
+    "typechain": "^5.1.2"
   },
   "devDependencies": {
     "@eth-optimism/hardhat-ovm": "^0.2.2",
