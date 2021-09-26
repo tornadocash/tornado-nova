@@ -58,7 +58,6 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
   const extDataHash = getExtDataHash(extData)
   let input = {
     root: oldRoot,
-    newRoot: tree.root(),
     inputNullifier: inputs.map((x) => x.getNullifier()),
     outputCommitment: outputs.map((x) => x.getCommitment()),
     publicAmount: BigNumber.from(extAmount).sub(fee).add(FIELD_SIZE).mod(FIELD_SIZE).toString(),
@@ -84,10 +83,8 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
   const args = {
     proof,
     root: toFixedHex(input.root),
-    newRoot: toFixedHex(input.newRoot),
     inputNullifiers: inputs.map((x) => toFixedHex(x.getNullifier())),
     outputCommitments: outputs.map((x) => toFixedHex(x.getCommitment())),
-    outPathIndices: toFixedHex(outputIndex >> outputBatchBits),
     publicAmount: toFixedHex(input.publicAmount),
     extDataHash: toFixedHex(extDataHash),
   }

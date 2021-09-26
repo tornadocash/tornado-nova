@@ -12,26 +12,23 @@
 
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
-import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
+import "./MerkleTreeWithHistory.sol";
 
 interface IVerifier {
-  function verifyProof(bytes memory _proof, uint256[9] memory _input) external view returns (bool);
+  function verifyProof(bytes memory _proof, uint256[7] memory _input) external view returns (bool);
 
-  function verifyProof(bytes memory _proof, uint256[23] memory _input) external view returns (bool);
+  function verifyProof(bytes memory _proof, uint256[21] memory _input) external view returns (bool);
 }
 
 interface ERC20 {
   function transfer(address to, uint256 value) external returns (bool);
 }
 
-contract TornadoPool is Initializable {
-  uint256 public constant FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+contract TornadoPool is MerkleTreeWithHistory {
   int256 public constant MAX_EXT_AMOUNT = 2**248;
   uint256 public constant MAX_FEE = 2**248;
 
   mapping(bytes32 => bool) public nullifierHashes;
-  bytes32 public currentRoot;
-  uint256 public currentCommitmentIndex;
   IVerifier public immutable verifier2;
   IVerifier public immutable verifier16;
 
@@ -47,10 +44,8 @@ contract TornadoPool is Initializable {
   struct Proof {
     bytes proof;
     bytes32 root;
-    bytes32 newRoot;
     bytes32[] inputNullifiers;
     bytes32[2] outputCommitments;
-    uint256 outPathIndices;
     uint256 publicAmount;
     bytes32 extDataHash;
   }
@@ -70,28 +65,25 @@ contract TornadoPool is Initializable {
     @param _verifier2 the address of SNARK verifier for 2 inputs
     @param _verifier16 the address of SNARK verifier for 16 inputs
   */
-  constructor(IVerifier _verifier2, IVerifier _verifier16) {
+  constructor(
+    IVerifier _verifier2,
+    IVerifier _verifier16,
+    uint32 _levels,
+    address _hasher
+  ) MerkleTreeWithHistory(_levels, _hasher) {
     verifier2 = _verifier2;
     verifier16 = _verifier16;
   }
 
-  function initialize(bytes32 _currentRoot) external initializer {
-    currentRoot = _currentRoot;
-  }
-
   function transaction(Proof calldata _args, ExtData calldata _extData) public payable {
-    require(currentRoot == _args.root, "Invalid merkle root");
+    require(isKnownRoot(_args.root), "Invalid merkle root");
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       require(!isSpent(_args.inputNullifiers[i]), "Input is already spent");
     }
     require(uint256(_args.extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
-    uint256 cachedCommitmentIndex = currentCommitmentIndex;
-    require(_args.outPathIndices == cachedCommitmentIndex >> 1, "Invalid merkle tree insert position");
     require(_args.publicAmount == calculatePublicAmount(_extData.extAmount, _extData.fee), "Invalid public amount");
     require(verifyProof(_args), "Invalid transaction proof");
 
-    currentRoot = _args.newRoot;
-    currentCommitmentIndex = cachedCommitmentIndex + 2;
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       nullifierHashes[_args.inputNullifiers[i]] = true;
     }
@@ -110,8 +102,9 @@ contract TornadoPool is Initializable {
       _transfer(_extData.relayer, _extData.fee);
     }
 
-    emit NewCommitment(_args.outputCommitments[0], cachedCommitmentIndex, _extData.encryptedOutput1);
-    emit NewCommitment(_args.outputCommitments[1], cachedCommitmentIndex + 1, _extData.encryptedOutput2);
+    _insert(_args.outputCommitments[0], _args.outputCommitments[1]);
+    emit NewCommitment(_args.outputCommitments[0], nextIndex - 2, _extData.encryptedOutput1);
+    emit NewCommitment(_args.outputCommitments[1], nextIndex - 1, _extData.encryptedOutput2);
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       emit NewNullifier(_args.inputNullifiers[i]);
     }
@@ -148,14 +141,12 @@ contract TornadoPool is Initializable {
           _args.proof,
           [
             uint256(_args.root),
-            uint256(_args.newRoot),
             _args.publicAmount,
             uint256(_args.extDataHash),
             uint256(_args.inputNullifiers[0]),
             uint256(_args.inputNullifiers[1]),
             uint256(_args.outputCommitments[0]),
-            uint256(_args.outputCommitments[1]),
-            _args.outPathIndices
+            uint256(_args.outputCommitments[1])
           ]
         );
     } else if (_args.inputNullifiers.length == 16) {
@@ -164,7 +155,6 @@ contract TornadoPool is Initializable {
           _args.proof,
           [
             uint256(_args.root),
-            uint256(_args.newRoot),
             _args.publicAmount,
             uint256(_args.extDataHash),
             uint256(_args.inputNullifiers[0]),
@@ -184,8 +174,7 @@ contract TornadoPool is Initializable {
             uint256(_args.inputNullifiers[14]),
             uint256(_args.inputNullifiers[15]),
             uint256(_args.outputCommitments[0]),
-            uint256(_args.outputCommitments[1]),
-            _args.outPathIndices
+            uint256(_args.outputCommitments[1])
           ]
         );
     } else {

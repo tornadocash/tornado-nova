@@ -17,7 +17,6 @@ nullifier = hash(commitment, privKey, merklePath)
 // Universal JoinSplit transaction with nIns inputs and 2 outputs
 template Transaction(levels, nIns, nOuts, zeroLeaf) {
     signal input root;
-    signal input newRoot;
     // extAmount = external amount used for deposits and withdrawals
     // correct extAmount range is enforced on the smart contract
     // publicAmount = extAmount - fee
@@ -37,7 +36,7 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     signal private input outAmount[nOuts];
     signal private input outBlinding[nOuts];
     signal private input outPubkey[nOuts];
-    signal         input outPathIndices;
+    signal private input outPathIndices;
     signal private input outPathElements[levels - 1];
 
     component inKeypair[nIns];
@@ -118,17 +117,6 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     // verify amount invariant
     sumIns + publicAmount === sumOuts;
 
-    // Check merkle tree update with inserted transaction outputs
-    component treeUpdater = TreeUpdater(levels, 1 /* log2(nOuts) */, zeroLeaf);
-    treeUpdater.oldRoot <== root;
-    treeUpdater.newRoot <== newRoot;
-    for (var i = 0; i < nOuts; i++) {
-      treeUpdater.leaves[i] <== outputCommitment[i];
-    }
-    treeUpdater.pathIndices <== outPathIndices;
-    for (var i = 0; i < levels - 1; i++) {
-        treeUpdater.pathElements[i] <== outPathElements[i];
-    }
-
+    // optional safety constraint to make sure extDataHash cannot be changed
     signal extDataSquare <== extDataHash * extDataHash;
 }

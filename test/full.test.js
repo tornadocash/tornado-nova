@@ -3,14 +3,12 @@ const { ethers, waffle } = hre
 const { loadFixture } = waffle
 const { expect } = require('chai')
 
-const { poseidonHash2 } = require('../src/utils')
+const { toFixedHex } = require('../src/utils')
 const Utxo = require('../src/utxo')
-
-const MERKLE_TREE_HEIGHT = 5
-const MerkleTree = require('fixed-merkle-tree')
-
 const { transaction, registerAndTransact } = require('../src/index')
 const { Keypair } = require('../src/keypair')
+
+const MERKLE_TREE_HEIGHT = 5
 
 describe('TornadoPool', function () {
   this.timeout(20000)
@@ -22,14 +20,19 @@ describe('TornadoPool', function () {
   }
 
   async function fixture() {
+    require('../scripts/compileHasher')
     const verifier2 = await deploy('Verifier2')
     const verifier16 = await deploy('Verifier16')
-
-    const tree = new MerkleTree(MERKLE_TREE_HEIGHT, [], { hashFunction: poseidonHash2 })
-
+    const hasher = await deploy('Hasher')
     /** @type {TornadoPool} */
-    const tornadoPool = await deploy('TornadoPool', verifier2.address, verifier16.address)
-    await tornadoPool.initialize(tree.root())
+    const tornadoPool = await deploy(
+      'TornadoPool',
+      verifier2.address,
+      verifier16.address,
+      MERKLE_TREE_HEIGHT,
+      hasher.address,
+    )
+    await tornadoPool.initialize()
     return { tornadoPool }
   }
 
@@ -48,7 +51,7 @@ describe('TornadoPool', function () {
     const TornadoPool = await ethers.getContractFactory('TornadoPool')
     /** @type {TornadoPool} */
     const tornadoPoolProxied = TornadoPool.attach(proxy.address)
-    await tornadoPoolProxied.initialize(await tornadoPool.currentRoot())
+    await tornadoPoolProxied.initialize()
 
     return { tornadoPool: tornadoPoolProxied, proxy, gov, messenger }
   }
