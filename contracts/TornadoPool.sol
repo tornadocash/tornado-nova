@@ -20,11 +20,19 @@ interface IVerifier {
   function verifyProof(bytes memory _proof, uint256[23] memory _input) external view returns (bool);
 }
 
-interface ERC20 {
+interface IERC20 {
   function transfer(address to, uint256 value) external returns (bool);
 }
 
-contract TornadoPool is Initializable {
+interface IERC20Receiver {
+  function onTokenBridged(
+    IERC20 token,
+    uint256 value,
+    bytes calldata data
+  ) external;
+}
+
+contract TornadoPool is Initializable, IERC20Receiver {
   uint256 public constant FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   int256 public constant MAX_EXT_AMOUNT = 2**248;
   uint256 public constant MAX_FEE = 2**248;
@@ -34,6 +42,7 @@ contract TornadoPool is Initializable {
   uint256 public currentCommitmentIndex;
   IVerifier public immutable verifier2;
   IVerifier public immutable verifier16;
+  IERC20 public immutable token;
 
   struct ExtData {
     address payable recipient;
@@ -70,16 +79,21 @@ contract TornadoPool is Initializable {
     @param _verifier2 the address of SNARK verifier for 2 inputs
     @param _verifier16 the address of SNARK verifier for 16 inputs
   */
-  constructor(IVerifier _verifier2, IVerifier _verifier16) {
+  constructor(
+    IVerifier _verifier2,
+    IVerifier _verifier16,
+    IERC20 _token
+  ) {
     verifier2 = _verifier2;
     verifier16 = _verifier16;
+    token = _token;
   }
 
   function initialize(bytes32 _currentRoot) external initializer {
     currentRoot = _currentRoot;
   }
 
-  function transaction(Proof calldata _args, ExtData calldata _extData) public payable {
+  function transaction(Proof memory _args, ExtData memory _extData) public payable {
     require(currentRoot == _args.root, "Invalid merkle root");
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       require(!isSpent(_args.inputNullifiers[i]), "Input is already spent");
@@ -101,31 +115,19 @@ contract TornadoPool is Initializable {
     } else if (_extData.extAmount < 0) {
       require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
       require(_extData.recipient != address(0), "Can't withdraw to zero address");
-      _transfer(_extData.recipient, uint256(-_extData.extAmount));
+      token.transfer(_extData.recipient, uint256(-_extData.extAmount));
     } else {
       require(msg.value == 0, "Sent ETH amount should be 0 for transaction");
     }
 
     if (_extData.fee > 0) {
-      _transfer(_extData.relayer, _extData.fee);
+      token.transfer(_extData.relayer, _extData.fee);
     }
 
     emit NewCommitment(_args.outputCommitments[0], cachedCommitmentIndex, _extData.encryptedOutput1);
     emit NewCommitment(_args.outputCommitments[1], cachedCommitmentIndex + 1, _extData.encryptedOutput2);
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       emit NewNullifier(_args.inputNullifiers[i]);
-    }
-  }
-
-  function _transfer(address payable _to, uint256 _amount) internal {
-    uint256 id;
-    assembly {
-      id := chainid()
-    }
-    if (id == 10) {
-      ERC20(0x4200000000000000000000000000000000000006).transfer(_to, _amount);
-    } else {
-      _to.transfer(_amount);
     }
   }
 
@@ -141,7 +143,7 @@ contract TornadoPool is Initializable {
     return nullifierHashes[_nullifierHash];
   }
 
-  function verifyProof(Proof calldata _args) public view returns (bool) {
+  function verifyProof(Proof memory _args) public view returns (bool) {
     if (_args.inputNullifiers.length == 2) {
       return
         verifier2.verifyProof(
@@ -193,17 +195,31 @@ contract TornadoPool is Initializable {
     }
   }
 
-  function register(Register calldata args) public {
+  function register(Register memory args) public {
     emit PublicKey(msg.sender, args.pubKey);
     emit EncryptedAccount(msg.sender, args.account);
   }
 
   function registerAndTransact(
-    Register calldata _registerArgs,
-    Proof calldata _proofArgs,
-    ExtData calldata _extData
-  ) external payable {
+    Register memory _registerArgs,
+    Proof memory _proofArgs,
+    ExtData memory _extData
+  ) public payable {
     register(_registerArgs);
     transaction(_proofArgs, _extData);
+  }
+
+  function onTokenBridged(
+    IERC20 _token,
+    uint256,
+    bytes calldata _data
+  ) external override {
+    require(_token == token, "provided token is not supported");
+    (Register memory _registerArgs, Proof memory _args, ExtData memory _extData) = abi.decode(_data, (Register, Proof, ExtData));
+    if (_registerArgs.pubKey.length != 0 && _registerArgs.account.length != 0) {
+      registerAndTransact(_registerArgs, _args, _extData);
+    } else {
+      transaction(_args, _extData);
+    }
   }
 }
