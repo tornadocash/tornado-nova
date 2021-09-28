@@ -3,7 +3,6 @@ const { ethers, waffle } = hre
 const { loadFixture } = waffle
 const { expect } = require('chai')
 
-const { toFixedHex } = require('../src/utils')
 const Utxo = require('../src/utxo')
 const { transaction, registerAndTransact } = require('../src/index')
 const { Keypair } = require('../src/keypair')

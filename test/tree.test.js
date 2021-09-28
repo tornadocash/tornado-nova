@@ -42,7 +42,7 @@ describe('MerkleTreeWithHistory', function () {
 
   describe('#constructor', () => {
     it('should correctly hash 2 leaves', async () => {
-      const { hasher, merkleTreeWithHistory } = await loadFixture(fixture)
+      const { merkleTreeWithHistory } = await loadFixture(fixture)
       //console.log(hasher)
       const hash0 = await merkleTreeWithHistory.hashLeftRight(toFixedHex(123), toFixedHex(456))
       // const hash1 = await hasher.poseidon([123, 456])
