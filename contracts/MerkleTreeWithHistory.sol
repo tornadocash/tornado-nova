@@ -38,7 +38,7 @@ contract MerkleTreeWithHistory is Initializable {
 
   constructor(uint32 _levels, address _hasher) {
     require(_levels > 0, "_levels should be greater than zero");
-    require(_levels < 31, "_levels should be less than 31");
+    require(_levels < 32, "_levels should be less than 32");
     levels = _levels;
     hasher = IHasher(_hasher);
   }
