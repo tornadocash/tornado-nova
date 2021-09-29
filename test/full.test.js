@@ -2,8 +2,8 @@ const hre = require('hardhat')
 const { ethers, waffle } = hre
 const { loadFixture } = waffle
 const { expect } = require('chai')
+const { utils } = ethers
 
-const { toFixedHex } = require('../src/utils')
 const Utxo = require('../src/utxo')
 const { transaction, registerAndTransact } = require('../src/index')
 const { Keypair } = require('../src/keypair')
@@ -21,9 +21,17 @@ describe('TornadoPool', function () {
 
   async function fixture() {
     require('../scripts/compileHasher')
+    const [sender, gov] = await ethers.getSigners()
     const verifier2 = await deploy('Verifier2')
     const verifier16 = await deploy('Verifier16')
     const hasher = await deploy('Hasher')
+
+    const token = await deploy('PermittableToken', 'Wrapped ETH', 'WETH', 18, 1)
+    await token.mint(sender.address, utils.parseEther('10000'))
+
+    const amb = await deploy('MockAMB', gov.address)
+    const omniBridge = await deploy('MockOmniBridge', amb.address)
+
     /** @type {TornadoPool} */
     const tornadoPool = await deploy(
       'TornadoPool',
@@ -31,36 +39,39 @@ describe('TornadoPool', function () {
       verifier16.address,
       MERKLE_TREE_HEIGHT,
       hasher.address,
+      token.address,
+      omniBridge.address,
     )
     await tornadoPool.initialize()
-    return { tornadoPool }
+
+    await token.approve(tornadoPool.address, utils.parseEther('10000'))
+    return { tornadoPool, token, omniBridge, amb }
   }
 
   async function fixtureUpgradeable() {
-    const { tornadoPool } = await loadFixture(fixture)
+    const { tornadoPool, omniBridge } = await loadFixture(fixture)
     const [, gov] = await ethers.getSigners()
-    const messenger = await deploy('MockOVM_CrossDomainMessenger', gov.address)
     const proxy = await deploy(
       'CrossChainUpgradeableProxy',
       tornadoPool.address,
       gov.address,
       [],
-      messenger.address,
+      omniBridge.address,
     )
 
-    const TornadoPool = await ethers.getContractFactory('TornadoPool')
     /** @type {TornadoPool} */
+    const TornadoPool = await ethers.getContractFactory('TornadoPool')
     const tornadoPoolProxied = TornadoPool.attach(proxy.address)
     await tornadoPoolProxied.initialize()
 
-    return { tornadoPool: tornadoPoolProxied, proxy, gov, messenger }
+    return { tornadoPool: tornadoPoolProxied, proxy, gov, omniBridge }
   }
 
   describe('Upgradeability tests', () => {
     it('admin should be gov', async () => {
-      const { proxy, messenger, gov } = await loadFixture(fixtureUpgradeable)
+      const { proxy, omniBridge, gov } = await loadFixture(fixtureUpgradeable)
       const { data } = await proxy.populateTransaction.admin()
-      const { result } = await messenger.callStatic.execute(proxy.address, data)
+      const { result } = await omniBridge.callStatic.execute(proxy.address, data)
       expect('0x' + result.slice(26)).to.be.equal(gov.address.toLowerCase())
     })
 
@@ -152,7 +163,7 @@ describe('TornadoPool', function () {
   })
 
   it('should deposit, transact and withdraw', async function () {
-    const { tornadoPool } = await loadFixture(fixture)
+    const { tornadoPool, token } = await loadFixture(fixture)
 
     // Alice deposits into tornado pool
     const aliceDepositAmount = 1e7
@@ -196,7 +207,7 @@ describe('TornadoPool', function () {
       recipient: bobEthAddress,
     })
 
-    const bobBalance = await ethers.provider.getBalance(bobEthAddress)
+    const bobBalance = await token.balanceOf(bobEthAddress)
     expect(bobBalance).to.be.equal(bobWithdrawAmount)
   })
 

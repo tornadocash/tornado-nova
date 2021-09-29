@@ -12,7 +12,17 @@
 
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
+
+import "@openzeppelin/contracts/contracts/token/ERC20/IERC20.sol";
 import "./MerkleTreeWithHistory.sol";
+
+interface IERC6777 is IERC20 {
+  function transferAndCall(
+    address,
+    uint256,
+    bytes calldata
+  ) external returns (bool);
+}
 
 interface IVerifier {
   function verifyProof(bytes memory _proof, uint256[7] memory _input) external view returns (bool);
@@ -20,13 +30,9 @@ interface IVerifier {
   function verifyProof(bytes memory _proof, uint256[21] memory _input) external view returns (bool);
 }
 
-interface IERC20 {
-  function transfer(address to, uint256 value) external returns (bool);
-}
-
 interface IERC20Receiver {
   function onTokenBridged(
-    IERC20 token,
+    IERC6777 token,
     uint256 value,
     bytes calldata data
   ) external;
@@ -39,15 +45,17 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
   mapping(bytes32 => bool) public nullifierHashes;
   IVerifier public immutable verifier2;
   IVerifier public immutable verifier16;
-  IERC20 public immutable token;
+  IERC6777 public immutable token;
+  address public immutable omniBridge;
 
   struct ExtData {
-    address payable recipient;
+    address recipient;
     int256 extAmount;
-    address payable relayer;
+    address relayer;
     uint256 fee;
     bytes encryptedOutput1;
     bytes encryptedOutput2;
+    bool isL1Withdraw;
   }
 
   struct Proof {
@@ -79,14 +87,25 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     IVerifier _verifier16,
     uint32 _levels,
     address _hasher,
-    IERC20 _token
+    IERC6777 _token,
+    address _omniBridge
   ) MerkleTreeWithHistory(_levels, _hasher) {
     verifier2 = _verifier2;
     verifier16 = _verifier16;
     token = _token;
+    omniBridge = _omniBridge;
   }
 
-  function transaction(Proof memory _args, ExtData memory _extData) public payable {
+  function transact(Proof memory _args, ExtData memory _extData) public {
+    if (_extData.extAmount > 0) {
+      // for deposits from L2
+      token.transferFrom(msg.sender, address(this), uint256(_extData.extAmount));
+    }
+
+    _transact(_args, _extData);
+  }
+
+  function _transact(Proof memory _args, ExtData memory _extData) internal {
     require(isKnownRoot(_args.root), "Invalid merkle root");
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       require(!isSpent(_args.inputNullifiers[i]), "Input is already spent");
@@ -99,14 +118,13 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
       nullifierHashes[_args.inputNullifiers[i]] = true;
     }
 
-    if (_extData.extAmount > 0) {
-      require(msg.value == uint256(_extData.extAmount), "Incorrect amount of ETH sent on deposit");
-    } else if (_extData.extAmount < 0) {
-      require(msg.value == 0, "Sent ETH amount should be 0 for withdrawal");
+    if (_extData.extAmount < 0) {
       require(_extData.recipient != address(0), "Can't withdraw to zero address");
-      token.transfer(_extData.recipient, uint256(-_extData.extAmount));
-    } else {
-      require(msg.value == 0, "Sent ETH amount should be 0 for transaction");
+      if (_extData.isL1Withdraw) {
+        token.transferAndCall(omniBridge, uint256(-_extData.extAmount), abi.encode(_extData.recipient));
+      } else {
+        token.transfer(_extData.recipient, uint256(-_extData.extAmount));
+      }
     }
 
     if (_extData.fee > 0) {
@@ -190,22 +208,24 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     Register memory _registerArgs,
     Proof memory _proofArgs,
     ExtData memory _extData
-  ) public payable {
+  ) public {
     register(_registerArgs);
-    transaction(_proofArgs, _extData);
+    transact(_proofArgs, _extData);
   }
 
+  /// TOTHINK security. should we track all incoming trasfers so we can to double check the bridge actually sent tokens to this contract?
   function onTokenBridged(
-    IERC20 _token,
+    IERC6777 _token,
     uint256,
     bytes calldata _data
   ) external override {
     require(_token == token, "provided token is not supported");
+    require(msg.sender == omniBridge, "only omni bridge"); // we can also get real msg.sender from L1, but it does not matter
+
     (Register memory _registerArgs, Proof memory _args, ExtData memory _extData) = abi.decode(_data, (Register, Proof, ExtData));
     if (_registerArgs.pubKey.length != 0 && _registerArgs.account.length != 0) {
-      registerAndTransact(_registerArgs, _args, _extData);
-    } else {
-      transaction(_args, _extData);
+      register(_registerArgs);
     }
+    _transact(_args, _extData);
   }
 }
