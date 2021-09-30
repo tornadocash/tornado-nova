@@ -146,7 +146,7 @@ async function transaction({ tornadoPool, ...rest }) {
   const receipt = await tornadoPool.transact(args, extData, {
     gasLimit: 1e6,
   })
-  await receipt.wait()
+  return await receipt.wait()
 }
 
 async function registerAndTransact({ tornadoPool, packedPrivateKeyData, poolAddress, ...rest }) {
@@ -166,4 +166,4 @@ async function registerAndTransact({ tornadoPool, packedPrivateKeyData, poolAddr
   await receipt.wait()
 }
 
-module.exports = { transaction, registerAndTransact }
+module.exports = { transaction, registerAndTransact, prepareTransaction }

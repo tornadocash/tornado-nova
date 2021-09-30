@@ -16,6 +16,8 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/contracts/token/ERC20/IERC20.sol";
 import "./MerkleTreeWithHistory.sol";
 
+import "hardhat/console.sol";
+
 interface IERC6777 is IERC20 {
   function transferAndCall(
     address,
@@ -47,6 +49,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
   IVerifier public immutable verifier16;
   IERC6777 public immutable token;
   address public immutable omniBridge;
+  address public immutable l1Unwrapper;
 
   struct ExtData {
     address recipient;
@@ -55,7 +58,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     uint256 fee;
     bytes encryptedOutput1;
     bytes encryptedOutput2;
-    bool isL1Withdraw;
+    bool isL1Withdrawal;
   }
 
   struct Proof {
@@ -88,12 +91,14 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     uint32 _levels,
     address _hasher,
     IERC6777 _token,
-    address _omniBridge
+    address _omniBridge,
+    address _l1Unwrapper
   ) MerkleTreeWithHistory(_levels, _hasher) {
     verifier2 = _verifier2;
     verifier16 = _verifier16;
     token = _token;
     omniBridge = _omniBridge;
+    l1Unwrapper = _l1Unwrapper;
   }
 
   function transact(Proof memory _args, ExtData memory _extData) public {
@@ -120,13 +125,12 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
 
     if (_extData.extAmount < 0) {
       require(_extData.recipient != address(0), "Can't withdraw to zero address");
-      if (_extData.isL1Withdraw) {
-        token.transferAndCall(omniBridge, uint256(-_extData.extAmount), abi.encode(_extData.recipient));
+      if (_extData.isL1Withdrawal) {
+        token.transferAndCall(omniBridge, uint256(-_extData.extAmount), abi.encodePacked(l1Unwrapper, _extData.recipient));
       } else {
         token.transfer(_extData.recipient, uint256(-_extData.extAmount));
       }
     }
-
     if (_extData.fee > 0) {
       token.transfer(_extData.relayer, _extData.fee);
     }

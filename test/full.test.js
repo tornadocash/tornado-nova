@@ -5,7 +5,7 @@ const { expect } = require('chai')
 const { utils } = ethers
 
 const Utxo = require('../src/utxo')
-const { transaction, registerAndTransact } = require('../src/index')
+const { transaction, registerAndTransact, prepareTransaction } = require('../src/index')
 const { Keypair } = require('../src/keypair')
 
 const MERKLE_TREE_HEIGHT = 5
@@ -21,7 +21,7 @@ describe('TornadoPool', function () {
 
   async function fixture() {
     require('../scripts/compileHasher')
-    const [sender, gov] = await ethers.getSigners()
+    const [sender, gov, l1Unwrapper] = await ethers.getSigners()
     const verifier2 = await deploy('Verifier2')
     const verifier16 = await deploy('Verifier16')
     const hasher = await deploy('Hasher')
@@ -41,6 +41,7 @@ describe('TornadoPool', function () {
       hasher.address,
       token.address,
       omniBridge.address,
+      l1Unwrapper.address,
     )
     await tornadoPool.initialize()
 
@@ -209,6 +210,54 @@ describe('TornadoPool', function () {
 
     const bobBalance = await token.balanceOf(bobEthAddress)
     expect(bobBalance).to.be.equal(bobWithdrawAmount)
+  })
+
+  it('should deposit from L1 and withdraw to L1', async function () {
+    const { tornadoPool, token, omniBridge } = await loadFixture(fixture)
+    // console.log('tornadoPool', tornadoPool.interface)
+
+    // Alice deposits into tornado pool
+    const aliceDepositAmount = 1e7
+    const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount })
+    const { args, extData } = await prepareTransaction({
+      tornadoPool,
+      outputs: [aliceDepositUtxo],
+    })
+    const transactTx = await tornadoPool.populateTransaction.registerAndTransact(
+      { pubKey: [], account: [] },
+      args,
+      extData,
+    )
+    const onTokenBridgedData = '0x' + transactTx.data.slice(10)
+    const onTokenBridgedTx = await tornadoPool.populateTransaction.onTokenBridged(
+      token.address,
+      aliceDepositUtxo.amount,
+      onTokenBridgedData,
+    )
+    // emulating bridge. first it sends tokens and then calls onTokenBridged method
+    await token.transfer(tornadoPool.address, aliceDepositAmount)
+    await omniBridge.execute(tornadoPool.address, onTokenBridgedTx.data)
+
+    // withdraws a part of his funds from the shielded pool
+    const aliceKeypair = new Keypair() // contains private and public keys
+    const aliceWithdrawAmount = 2e6
+    const recipient = '0xDeaD00000000000000000000000000000000BEEf'
+    const aliceChangeUtxo = new Utxo({
+      amount: aliceDepositAmount - aliceWithdrawAmount,
+      keypair: aliceKeypair,
+    })
+    await transaction({
+      tornadoPool,
+      inputs: [aliceDepositUtxo],
+      outputs: [aliceChangeUtxo],
+      recipient: recipient,
+      isL1Withdrawal: true,
+    })
+
+    const recipientBalance = await token.balanceOf(recipient)
+    expect(recipientBalance).to.be.equal(0)
+    const omniBridgeBalance = await token.balanceOf(omniBridge.address)
+    expect(omniBridgeBalance).to.be.equal(aliceWithdrawAmount)
   })
 
   it('should work with 16 inputs', async function () {
