@@ -29,7 +29,7 @@ const config = {
   },
   networks: {
     xdai: {
-      url: process.env.ETH_RPC,
+      url: process.env.ETH_RPC || 'https://rpc.xdaichain.com/',
       accounts: process.env.PRIVATE_KEY
         ? [process.env.PRIVATE_KEY]
         : {
