@@ -1,21 +1,13 @@
 const { ethers } = require('hardhat')
 
 const MERKLE_TREE_HEIGHT = 23
-const MerkleTree = require('fixed-merkle-tree')
-const { poseidon } = require('circomlib')
-const poseidonHash = (items) => ethers.BigNumber.from(poseidon(items).toString())
-const poseidonHash2 = (a, b) => poseidonHash([a, b])
-
-const toFixedHex = (number, length = 32) =>
-  '0x' +
-  (number instanceof Buffer
-    ? number.toString('hex')
-    : ethers.BigNumber.from(number).toHexString().slice(2)
-  ).padStart(length * 2, '0')
 
 async function main() {
+  require('../scripts/compileHasher')
   const govAddress = '0x5efda50f22d34F262c29268506C5Fa42cB56A1Ce'
-  const crossDomainMessenger = '0x4200000000000000000000000000000000000007'
+  const omniBridge = '0x59447362798334d3485c64D1e4870Fde2DDC0d75'
+  const token = '0xCa8d20f3e0144a72C6B5d576e9Bd3Fd8557E2B04' // WBNB
+  const l1Unwrapper = '0xefc33f8b2c4d51005585962be7ea20518ea9fd0d' // WBNB -> BNB
 
   const Verifier2 = await ethers.getContractFactory('Verifier2')
   const verifier2 = await Verifier2.deploy()
@@ -27,23 +19,29 @@ async function main() {
   await verifier16.deployed()
   console.log(`verifier16: ${verifier16.address}`)
 
-  const tree = new MerkleTree(MERKLE_TREE_HEIGHT, [], { hashFunction: poseidonHash2 })
-  const root = await tree.root()
-  console.log('root', toFixedHex(root))
+  const Hasher = await await ethers.getContractFactory('Hasher')
+  const hasher = await Hasher.deploy()
 
   const Pool = await ethers.getContractFactory('TornadoPool')
-  const tornado = await Pool.deploy(verifier2.address, verifier16.address)
+  const tornado = await Pool.deploy(
+    verifier2.address,
+    verifier16.address,
+    MERKLE_TREE_HEIGHT,
+    hasher.address,
+    token,
+    omniBridge,
+    l1Unwrapper,
+  )
   await tornado.deployed()
   console.log(`TornadoPool address: ${tornado.address}`)
 
   const CrossChainUpgradeableProxy = await ethers.getContractFactory('CrossChainUpgradeableProxy')
-  const proxy = await CrossChainUpgradeableProxy.deploy(tornado.address, govAddress, [], crossDomainMessenger)
+  const proxy = await CrossChainUpgradeableProxy.deploy(tornado.address, govAddress, [], omniBridge)
   await proxy.deployed()
   console.log(`proxy address: ${proxy.address}`)
 
   const tornadoPool = Pool.attach(proxy.address)
-
-  await tornadoPool.initialize(toFixedHex(root))
+  await tornadoPool.initialize()
 }
 
 main()

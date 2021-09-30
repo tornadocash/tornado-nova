@@ -28,14 +28,14 @@ const config = {
     ],
   },
   networks: {
-    // goerli: {
-    //   url: process.env.ETH_RPC,
-    //   accounts: process.env.PRIVATE_KEY
-    //     ? [process.env.PRIVATE_KEY]
-    //     : {
-    //         mnemonic: 'test test test test test test test test test test test junk',
-    //       },
-    // },
+    xdai: {
+      url: process.env.ETH_RPC,
+      accounts: process.env.PRIVATE_KEY
+        ? [process.env.PRIVATE_KEY]
+        : {
+            mnemonic: 'test test test test test test test test test test test junk',
+          },
+    },
   },
   mocha: {
     timeout: 600000000,
