@@ -154,6 +154,7 @@ contract MerkleTreeWithHistory is Initializable {
     else if (i == 29) return bytes32(0x29ba6a30de50542e261abfc7ee0c68911002d3acd4dd4c02ad59aa96805b20bb);
     else if (i == 30) return bytes32(0x103fcf1c8a98ebe50285f6e669077a579308311fd44bb6895d5da7ba7fd3564e);
     else if (i == 31) return bytes32(0x166bdd01780976e655f5278260c638dcf10fe7c136f37c9152cbcaabef901f4d);
+    else if (i == 32) return bytes32(0x2712c601a9b8b2abd396a619327095d3f1ea86a6c07d6df416a3973a1a4b3ce5);
     else revert("Index out of bounds");
   }
 }
