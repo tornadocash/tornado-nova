@@ -5,9 +5,11 @@ import { IAMB } from "../CrossChainUpgradeableProxy.sol";
 
 contract MockAMB is IAMB {
   address public xDomainMessageSender;
+  bytes32 public xDomainMessageChainId;
 
-  constructor(address _xDomainMessageSender) {
+  constructor(address _xDomainMessageSender, uint256 _xDomainMessageChainId) {
     xDomainMessageSender = _xDomainMessageSender;
+    xDomainMessageChainId = bytes32(uint256(_xDomainMessageChainId));
   }
 
   function setMessageSender(address _sender) external {
@@ -16,5 +18,9 @@ contract MockAMB is IAMB {
 
   function messageSender() external view override returns (address) {
     return xDomainMessageSender;
+  }
+
+  function messageSourceChainId() external view override returns (bytes32) {
+    return xDomainMessageChainId;
   }
 }

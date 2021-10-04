@@ -16,8 +16,6 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/contracts/token/ERC20/IERC20.sol";
 import "./MerkleTreeWithHistory.sol";
 
-import "hardhat/console.sol";
-
 interface IERC6777 is IERC20 {
   function transferAndCall(
     address,
@@ -44,12 +42,14 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
   int256 public constant MAX_EXT_AMOUNT = 2**248;
   uint256 public constant MAX_FEE = 2**248;
 
-  mapping(bytes32 => bool) public nullifierHashes;
   IVerifier public immutable verifier2;
   IVerifier public immutable verifier16;
   IERC6777 public immutable token;
   address public immutable omniBridge;
   address public immutable l1Unwrapper;
+
+  uint256 public totalDeposited;
+  mapping(bytes32 => bool) public nullifierHashes;
 
   struct ExtData {
     address recipient;
@@ -68,11 +68,6 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     bytes32[2] outputCommitments;
     uint256 publicAmount;
     bytes32 extDataHash;
-  }
-
-  struct Register {
-    bytes pubKey;
-    bytes account;
   }
 
   event NewCommitment(bytes32 commitment, uint256 index, bytes encryptedOutput);
@@ -105,6 +100,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     if (_extData.extAmount > 0) {
       // for deposits from L2
       token.transferFrom(msg.sender, address(this), uint256(_extData.extAmount));
+      totalDeposited += uint256(_extData.extAmount);
     }
 
     _transact(_args, _extData);
@@ -130,6 +126,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
       } else {
         token.transfer(_extData.recipient, uint256(-_extData.extAmount));
       }
+      totalDeposited -= uint256(-_extData.extAmount);
     }
     if (_extData.fee > 0) {
       token.transfer(_extData.relayer, _extData.fee);
@@ -203,32 +200,34 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     }
   }
 
-  function register(Register memory args) public {
-    emit PublicKey(msg.sender, args.pubKey);
-    emit EncryptedAccount(msg.sender, args.account);
+  function register(bytes memory _publicKey) public {
+    emit PublicKey(msg.sender, _publicKey);
   }
 
   function registerAndTransact(
-    Register memory _registerArgs,
+    bytes memory _publicKey,
     Proof memory _proofArgs,
     ExtData memory _extData
   ) public {
-    register(_registerArgs);
+    register(_publicKey);
     transact(_proofArgs, _extData);
   }
 
-  /// TOTHINK security. should we track all incoming trasfers so we can to double check the bridge actually sent tokens to this contract?
   function onTokenBridged(
     IERC6777 _token,
-    uint256,
+    uint256 _amount,
     bytes calldata _data
   ) external override {
+    (bytes memory _publicKey, Proof memory _args, ExtData memory _extData) = abi.decode(_data, (bytes, Proof, ExtData));
     require(_token == token, "provided token is not supported");
-    require(msg.sender == omniBridge, "only omni bridge"); // we can also get real msg.sender from L1, but it does not matter
+    require(msg.sender == omniBridge, "only omni bridge");
+    require(_amount == uint256(_extData.extAmount), "amount from bridge is incorrect");
+    require(uint256(_extData.extAmount) + totalDeposited >= token.balanceOf(address(this)), "bridge did not send enough tokens");
 
-    (Register memory _registerArgs, Proof memory _args, ExtData memory _extData) = abi.decode(_data, (Register, Proof, ExtData));
-    if (_registerArgs.pubKey.length != 0 && _registerArgs.account.length != 0) {
-      register(_registerArgs);
+    totalDeposited += uint256(_extData.extAmount);
+
+    if (_publicKey.length != 0) {
+      register(_publicKey);
     }
     _transact(_args, _extData);
   }

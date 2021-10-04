@@ -149,18 +149,13 @@ async function transaction({ tornadoPool, ...rest }) {
   return await receipt.wait()
 }
 
-async function registerAndTransact({ tornadoPool, packedPrivateKeyData, poolAddress, ...rest }) {
+async function registerAndTransact({ tornadoPool, poolAddress, ...rest }) {
   const { args, extData } = await prepareTransaction({
     tornadoPool,
     ...rest,
   })
 
-  const params = {
-    pubKey: poolAddress,
-    account: packedPrivateKeyData,
-  }
-
-  const receipt = await tornadoPool.registerAndTransact(params, args, extData, {
+  const receipt = await tornadoPool.registerAndTransact(poolAddress, args, extData, {
     gasLimit: 2e6,
   })
   await receipt.wait()

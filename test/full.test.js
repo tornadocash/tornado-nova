@@ -29,7 +29,7 @@ describe('TornadoPool', function () {
     const token = await deploy('PermittableToken', 'Wrapped ETH', 'WETH', 18, 1)
     await token.mint(sender.address, utils.parseEther('10000'))
 
-    const amb = await deploy('MockAMB', gov.address)
+    const amb = await deploy('MockAMB', gov.address, 1)
     const omniBridge = await deploy('MockOmniBridge', amb.address)
 
     /** @type {TornadoPool} */
@@ -58,6 +58,7 @@ describe('TornadoPool', function () {
       gov.address,
       [],
       omniBridge.address,
+      1,
     )
 
     /** @type {TornadoPool} */
@@ -110,15 +111,9 @@ describe('TornadoPool', function () {
     const aliceDepositAmount = 1e7
     const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount })
 
-    const backupAccount = new Keypair()
-
-    const bufferPrivateKey = Buffer.from(aliceDepositUtxo.keypair.privkey)
-    const packedPrivateKeyData = backupAccount.encrypt(bufferPrivateKey)
-
     tornadoPool = tornadoPool.connect(sender)
     await registerAndTransact({
       tornadoPool,
-      packedPrivateKeyData,
       outputs: [aliceDepositUtxo],
       poolAddress: aliceDepositUtxo.keypair.address(),
     })
@@ -151,16 +146,6 @@ describe('TornadoPool', function () {
     const [registerEvent] = registerEvents.sort((a, b) => a.blockNumber - b.blockNumber).slice(-1)
 
     expect(registerEvent.args.key).to.be.equal(aliceDepositUtxo.keypair.address())
-
-    const accountFilter = tornadoPool.filters.EncryptedAccount(sender.address)
-    const accountFromBlock = await ethers.provider.getBlock()
-    const accountEvents = await tornadoPool.queryFilter(accountFilter, accountFromBlock.number)
-
-    const [accountEvent] = accountEvents.sort((a, b) => a.blockNumber - b.blockNumber).slice(-1)
-
-    const privateKey = backupAccount.decrypt(accountEvent.args.account)
-
-    expect(bufferPrivateKey.toString('hex')).to.be.equal(privateKey.toString('hex'))
   })
 
   it('should deposit, transact and withdraw', async function () {
@@ -223,11 +208,7 @@ describe('TornadoPool', function () {
       tornadoPool,
       outputs: [aliceDepositUtxo],
     })
-    const transactTx = await tornadoPool.populateTransaction.registerAndTransact(
-      { pubKey: [], account: [] },
-      args,
-      extData,
-    )
+    const transactTx = await tornadoPool.populateTransaction.registerAndTransact([], args, extData)
     const onTokenBridgedData = '0x' + transactTx.data.slice(10)
     const onTokenBridgedTx = await tornadoPool.populateTransaction.onTokenBridged(
       token.address,

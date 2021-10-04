@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/contracts/proxy/TransparentUpgradeableProxy.sol"
 
 interface IAMB {
   function messageSender() external view returns (address);
+
+  function messageSourceChainId() external view returns (bytes32);
 }
 
 interface IOmniBridge {
@@ -18,6 +20,7 @@ interface IOmniBridge {
  */
 contract CrossChainUpgradeableProxy is TransparentUpgradeableProxy {
   IOmniBridge public immutable omniBridge;
+  bytes32 public immutable adminChainId;
 
   /**
    * @dev Initializes an upgradeable proxy backed by the implementation at `_logic`.
@@ -26,16 +29,22 @@ contract CrossChainUpgradeableProxy is TransparentUpgradeableProxy {
     address _logic,
     address _admin,
     bytes memory _data,
-    IOmniBridge _omniBridge
+    IOmniBridge _omniBridge,
+    uint256 _adminChainId
   ) TransparentUpgradeableProxy(_logic, _admin, _data) {
     omniBridge = _omniBridge;
+    adminChainId = bytes32(uint256(_adminChainId));
   }
 
   /**
    * @dev Modifier used internally that will delegate the call to the implementation unless the sender is the cross chain admin.
    */
   modifier ifAdmin() override {
-    if (msg.sender == address(omniBridge) && omniBridge.bridgeContract().messageSender() == _admin()) {
+    if (
+      msg.sender == address(omniBridge) &&
+      omniBridge.bridgeContract().messageSourceChainId() == adminChainId &&
+      omniBridge.bridgeContract().messageSender() == _admin()
+    ) {
       _;
     } else {
       _fallback();
