@@ -149,13 +149,13 @@ async function transaction({ tornadoPool, ...rest }) {
   return await receipt.wait()
 }
 
-async function registerAndTransact({ tornadoPool, poolAddress, ...rest }) {
+async function registerAndTransact({ tornadoPool, account, ...rest }) {
   const { args, extData } = await prepareTransaction({
     tornadoPool,
     ...rest,
   })
 
-  const receipt = await tornadoPool.registerAndTransact(poolAddress, args, extData, {
+  const receipt = await tornadoPool.registerAndTransact(account, args, extData, {
     gasLimit: 2e6,
   })
   await receipt.wait()

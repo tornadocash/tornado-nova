@@ -115,7 +115,10 @@ describe('TornadoPool', function () {
     await registerAndTransact({
       tornadoPool,
       outputs: [aliceDepositUtxo],
-      poolAddress: aliceDepositUtxo.keypair.address(),
+      account: {
+        owner: sender.address,
+        publicKey: aliceDepositUtxo.keypair.address(),
+      },
     })
 
     const filter = tornadoPool.filters.NewCommitment()
@@ -208,7 +211,14 @@ describe('TornadoPool', function () {
       tornadoPool,
       outputs: [aliceDepositUtxo],
     })
-    const transactTx = await tornadoPool.populateTransaction.registerAndTransact([], args, extData)
+    const transactTx = await tornadoPool.populateTransaction.registerAndTransact(
+      {
+        owner: '0x0000000000000000000000000000000000000000',
+        publicKey: [],
+      },
+      args,
+      extData,
+    )
     const onTokenBridgedData = '0x' + transactTx.data.slice(10)
     const onTokenBridgedTx = await tornadoPool.populateTransaction.onTokenBridged(
       token.address,

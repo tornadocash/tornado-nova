@@ -70,10 +70,14 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     bytes32 extDataHash;
   }
 
+  struct Account {
+    address owner;
+    bytes publicKey;
+  }
+
   event NewCommitment(bytes32 commitment, uint256 index, bytes encryptedOutput);
   event NewNullifier(bytes32 nullifier);
   event PublicKey(address indexed owner, bytes key);
-  event EncryptedAccount(address indexed owner, bytes account);
 
   /**
     @dev The constructor
@@ -200,16 +204,21 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     }
   }
 
-  function register(bytes memory _publicKey) public {
-    emit PublicKey(msg.sender, _publicKey);
+  function register(Account memory _account) public {
+    require(_account.owner == msg.sender, "only owner can be registered");
+    _register(_account);
+  }
+
+  function _register(Account memory _account) internal {
+    emit PublicKey(_account.owner, _account.publicKey);
   }
 
   function registerAndTransact(
-    bytes memory _publicKey,
+    Account memory _account,
     Proof memory _proofArgs,
     ExtData memory _extData
   ) public {
-    register(_publicKey);
+    register(_account);
     transact(_proofArgs, _extData);
   }
 
@@ -218,7 +227,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     uint256 _amount,
     bytes calldata _data
   ) external override {
-    (bytes memory _publicKey, Proof memory _args, ExtData memory _extData) = abi.decode(_data, (bytes, Proof, ExtData));
+    (Account memory _account, Proof memory _args, ExtData memory _extData) = abi.decode(_data, (Account, Proof, ExtData));
     require(_token == token, "provided token is not supported");
     require(msg.sender == omniBridge, "only omni bridge");
     require(_amount == uint256(_extData.extAmount), "amount from bridge is incorrect");
@@ -226,8 +235,8 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
 
     totalDeposited += uint256(_extData.extAmount);
 
-    if (_publicKey.length != 0) {
-      register(_publicKey);
+    if (_account.owner != address(0) && _account.publicKey.length > 0) {
+      _register(_account);
     }
     _transact(_args, _extData);
   }
