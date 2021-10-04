@@ -23,6 +23,7 @@ async function main() {
   const Hasher = await await ethers.getContractFactory('Hasher')
   const hasher = await Hasher.deploy()
   await hasher.deployed()
+  console.log(`hasher: ${hasher.address}`)
 
   const Pool = await ethers.getContractFactory('TornadoPool')
   const tornado = await Pool.deploy(
