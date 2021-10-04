@@ -35,6 +35,7 @@ const config = {
         : {
             mnemonic: 'test test test test test test test test test test test junk',
           },
+      gasPrice: 25000000000,
     },
     bsc: {
       url: process.env.ETH_RPC || 'https://bsc-dataseed.binance.org/',
