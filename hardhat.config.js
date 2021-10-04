@@ -36,6 +36,14 @@ const config = {
             mnemonic: 'test test test test test test test test test test test junk',
           },
     },
+    bsc: {
+      url: process.env.ETH_RPC || 'https://bsc-dataseed.binance.org/',
+      accounts: process.env.PRIVATE_KEY
+        ? [process.env.PRIVATE_KEY]
+        : {
+            mnemonic: 'test test test test test test test test test test test junk',
+          },
+    },
   },
   mocha: {
     timeout: 600000000,

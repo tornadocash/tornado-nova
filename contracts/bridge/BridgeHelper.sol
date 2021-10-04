@@ -686,7 +686,7 @@ contract WETHOmnibridgeRouter is OwnableModule, Claimable {
    * @param _receiver bridged assets receiver on the other side of the bridge.
    * @param _data data for the call of receiver on other side.
    */
-  function wrapAndRelayTokensWithData(address _receiver, bytes memory _data) public payable {
+  function wrapAndRelayTokens(address _receiver, bytes memory _data) public payable {
     WETH.deposit{ value: msg.value }();
     bridge.relayTokensAndCall(address(WETH), _receiver, msg.value, _data);
   }
