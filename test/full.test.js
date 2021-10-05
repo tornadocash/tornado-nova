@@ -50,14 +50,14 @@ describe('TornadoPool', function () {
   }
 
   async function fixtureUpgradeable() {
-    const { tornadoPool, omniBridge } = await loadFixture(fixture)
+    const { tornadoPool, omniBridge, amb } = await loadFixture(fixture)
     const [, gov] = await ethers.getSigners()
     const proxy = await deploy(
       'CrossChainUpgradeableProxy',
       tornadoPool.address,
       gov.address,
       [],
-      omniBridge.address,
+      amb.address,
       1,
     )
 
@@ -66,14 +66,14 @@ describe('TornadoPool', function () {
     const tornadoPoolProxied = TornadoPool.attach(proxy.address)
     await tornadoPoolProxied.initialize()
 
-    return { tornadoPool: tornadoPoolProxied, proxy, gov, omniBridge }
+    return { tornadoPool: tornadoPoolProxied, proxy, gov, omniBridge, amb }
   }
 
   describe('Upgradeability tests', () => {
     it('admin should be gov', async () => {
-      const { proxy, omniBridge, gov } = await loadFixture(fixtureUpgradeable)
+      const { proxy, amb, gov } = await loadFixture(fixtureUpgradeable)
       const { data } = await proxy.populateTransaction.admin()
-      const { result } = await omniBridge.callStatic.execute(proxy.address, data)
+      const { result } = await amb.callStatic.execute(proxy.address, data)
       expect('0x' + result.slice(26)).to.be.equal(gov.address.toLowerCase())
     })
 

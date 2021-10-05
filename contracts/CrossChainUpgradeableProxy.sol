@@ -1,25 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.0;
 
+import { IAMB } from "./interfaces/Bridge.sol";
 import "@openzeppelin/contracts/contracts/proxy/TransparentUpgradeableProxy.sol";
-
-// https://docs.tokenbridge.net/amb-bridge/development-of-a-cross-chain-application/how-to-develop-xchain-apps-by-amb#call-a-method-in-another-chain-using-the-amb-bridge
-
-interface IAMB {
-  function messageSender() external view returns (address);
-
-  function messageSourceChainId() external view returns (bytes32);
-}
-
-interface IOmniBridge {
-  function bridgeContract() external view returns (IAMB);
-}
 
 /**
  * @dev TransparentUpgradeableProxy where admin acts from a different chain.
  */
 contract CrossChainUpgradeableProxy is TransparentUpgradeableProxy {
-  IOmniBridge public immutable omniBridge;
+  IAMB public immutable ambBridge;
   bytes32 public immutable adminChainId;
 
   /**
@@ -29,10 +18,10 @@ contract CrossChainUpgradeableProxy is TransparentUpgradeableProxy {
     address _logic,
     address _admin,
     bytes memory _data,
-    IOmniBridge _omniBridge,
+    IAMB _ambBridge,
     uint256 _adminChainId
   ) TransparentUpgradeableProxy(_logic, _admin, _data) {
-    omniBridge = _omniBridge;
+    ambBridge = _ambBridge;
     adminChainId = bytes32(uint256(_adminChainId));
   }
 
@@ -41,9 +30,9 @@ contract CrossChainUpgradeableProxy is TransparentUpgradeableProxy {
    */
   modifier ifAdmin() override {
     if (
-      msg.sender == address(omniBridge) &&
-      omniBridge.bridgeContract().messageSourceChainId() == adminChainId &&
-      omniBridge.bridgeContract().messageSender() == _admin()
+      msg.sender == address(ambBridge) &&
+      ambBridge.messageSourceChainId() == adminChainId &&
+      ambBridge.messageSender() == _admin()
     ) {
       _;
     } else {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.0;
 
-import { IAMB, IOmniBridge } from "../CrossChainUpgradeableProxy.sol";
+import { IAMB, IOmniBridge } from "../interfaces/Bridge.sol";
 
 contract MockOmniBridge is IOmniBridge {
   IAMB public AMB;
