@@ -4,11 +4,17 @@ const { loadFixture } = waffle
 const { expect } = require('chai')
 const { utils } = ethers
 
+const { toBuffer } = require('ethereumjs-util')
+const { signTypedData, SignTypedDataVersion } = require('@metamask/eth-sig-util')
+
 const Utxo = require('../src/utxo')
 const { transaction, registerAndTransact, prepareTransaction } = require('../src/index')
 const { Keypair } = require('../src/keypair')
+const { EIP721Params, encodeDataForBridge } = require('./utils')
 
 const MERKLE_TREE_HEIGHT = 5
+const L1ChainId = 1
+const SENDER_PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
 
 describe('TornadoPool', function () {
   this.timeout(20000)
@@ -26,14 +32,14 @@ describe('TornadoPool', function () {
     const verifier16 = await deploy('Verifier16')
     const hasher = await deploy('Hasher')
 
-    const token = await deploy('PermittableToken', 'Wrapped ETH', 'WETH', 18, 1)
+    const token = await deploy('PermittableToken', 'Wrapped ETH', 'WETH', 18, L1ChainId)
     await token.mint(sender.address, utils.parseEther('10000'))
 
-    const amb = await deploy('MockAMB', gov.address, 1)
+    const amb = await deploy('MockAMB', gov.address, L1ChainId)
     const omniBridge = await deploy('MockOmniBridge', amb.address)
 
     /** @type {TornadoPool} */
-    const tornadoPool = await deploy(
+    const tornadoPoolImpl = await deploy(
       'TornadoPool',
       verifier2.address,
       verifier16.address,
@@ -42,43 +48,38 @@ describe('TornadoPool', function () {
       token.address,
       omniBridge.address,
       l1Unwrapper.address,
+      L1ChainId,
     )
-    await tornadoPool.initialize()
+    await tornadoPoolImpl.initialize() // not necessary
 
-    await token.approve(tornadoPool.address, utils.parseEther('10000'))
-    return { tornadoPool, token, omniBridge, amb }
-  }
-
-  async function fixtureUpgradeable() {
-    const { tornadoPool, omniBridge, amb } = await loadFixture(fixture)
-    const [, gov] = await ethers.getSigners()
     const proxy = await deploy(
       'CrossChainUpgradeableProxy',
-      tornadoPool.address,
+      tornadoPoolImpl.address,
       gov.address,
       [],
       amb.address,
-      1,
+      L1ChainId,
     )
 
-    /** @type {TornadoPool} */
     const TornadoPool = await ethers.getContractFactory('TornadoPool')
-    const tornadoPoolProxied = TornadoPool.attach(proxy.address)
-    await tornadoPoolProxied.initialize()
+    const tornadoPool = TornadoPool.attach(proxy.address)
+    await tornadoPool.initialize()
 
-    return { tornadoPool: tornadoPoolProxied, proxy, gov, omniBridge, amb }
+    await token.approve(tornadoPool.address, utils.parseEther('10000'))
+
+    return { tornadoPool, token, proxy, omniBridge, amb, gov }
   }
 
   describe('Upgradeability tests', () => {
     it('admin should be gov', async () => {
-      const { proxy, amb, gov } = await loadFixture(fixtureUpgradeable)
+      const { proxy, amb, gov } = await loadFixture(fixture)
       const { data } = await proxy.populateTransaction.admin()
       const { result } = await amb.callStatic.execute(proxy.address, data)
       expect('0x' + result.slice(26)).to.be.equal(gov.address.toLowerCase())
     })
 
     it('non admin cannot call', async () => {
-      const { proxy } = await loadFixture(fixtureUpgradeable)
+      const { proxy } = await loadFixture(fixture)
       await expect(proxy.admin()).to.be.revertedWith(
         "Transaction reverted: function selector was not recognized and there's no fallback function",
       )
@@ -202,24 +203,38 @@ describe('TornadoPool', function () {
 
   it('should deposit from L1 and withdraw to L1', async function () {
     const { tornadoPool, token, omniBridge } = await loadFixture(fixture)
-    // console.log('tornadoPool', tornadoPool.interface)
+    const owner = (await ethers.getSigners())[0].address
+    const aliceKeypair = new Keypair() // contains private and public keys
 
     // Alice deposits into tornado pool
     const aliceDepositAmount = 1e7
-    const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount })
+    const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount, keypair: aliceKeypair })
     const { args, extData } = await prepareTransaction({
       tornadoPool,
       outputs: [aliceDepositUtxo],
     })
-    const transactTx = await tornadoPool.populateTransaction.registerAndTransact(
-      {
-        owner: '0x0000000000000000000000000000000000000000',
-        publicKey: [],
+
+    const signature = signTypedData({
+      privateKey: toBuffer(SENDER_PRIVATE_KEY),
+      data: EIP721Params({
+        chainId: L1ChainId,
+        verifyingContract: tornadoPool.address,
+        owner,
+        publicKey: aliceKeypair.address(),
+      }),
+      version: SignTypedDataVersion.V4,
+    })
+
+    const onTokenBridgedData = encodeDataForBridge({
+      account: {
+        owner,
+        publicKey: aliceKeypair.address(),
       },
-      args,
+      proof: args,
       extData,
-    )
-    const onTokenBridgedData = '0x' + transactTx.data.slice(10)
+      signature,
+    })
+
     const onTokenBridgedTx = await tornadoPool.populateTransaction.onTokenBridged(
       token.address,
       aliceDepositUtxo.amount,
@@ -230,7 +245,6 @@ describe('TornadoPool', function () {
     await omniBridge.execute(tornadoPool.address, onTokenBridgedTx.data)
 
     // withdraws a part of his funds from the shielded pool
-    const aliceKeypair = new Keypair() // contains private and public keys
     const aliceWithdrawAmount = 2e6
     const recipient = '0xDeaD00000000000000000000000000000000BEEf'
     const aliceChangeUtxo = new Utxo({

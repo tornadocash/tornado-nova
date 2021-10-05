@@ -16,6 +16,7 @@ contract MockOmniBridge is IOmniBridge {
 
   function execute(address _who, bytes calldata _calldata) external returns (bool success, bytes memory result) {
     (success, result) = _who.call(_calldata);
+    require(success, string(result));
   }
 
   event OnTokenTransfer(address contr, address from, address receiver, uint256 value, bytes data);

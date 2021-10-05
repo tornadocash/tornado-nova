@@ -14,6 +14,7 @@ pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/contracts/cryptography/ECDSA.sol";
 import "./MerkleTreeWithHistory.sol";
 
 interface IERC6777 is IERC20 {
@@ -41,6 +42,8 @@ interface IERC20Receiver {
 contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
   int256 public constant MAX_EXT_AMOUNT = 2**248;
   uint256 public constant MAX_FEE = 2**248;
+  bytes32 public constant ACCOUNT_TYPEHASH = keccak256("TornadoAccount(address owner,bytes publicKey)");
+  uint256 public immutable L1_CHAIN_ID;
 
   IVerifier public immutable verifier2;
   IVerifier public immutable verifier16;
@@ -91,13 +94,15 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     address _hasher,
     IERC6777 _token,
     address _omniBridge,
-    address _l1Unwrapper
+    address _l1Unwrapper,
+    uint256 _l1ChainId
   ) MerkleTreeWithHistory(_levels, _hasher) {
     verifier2 = _verifier2;
     verifier16 = _verifier16;
     token = _token;
     omniBridge = _omniBridge;
     l1Unwrapper = _l1Unwrapper;
+    L1_CHAIN_ID = _l1ChainId;
   }
 
   function transact(Proof memory _args, ExtData memory _extData) public {
@@ -227,7 +232,11 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     uint256 _amount,
     bytes calldata _data
   ) external override {
-    (Account memory _account, Proof memory _args, ExtData memory _extData) = abi.decode(_data, (Account, Proof, ExtData));
+    (Account memory _account, Proof memory _args, ExtData memory _extData, bytes memory _signature) = abi.decode(
+      _data,
+      (Account, Proof, ExtData, bytes)
+    );
+    require(isValidSignature(_account, _signature), "Invalid account signature");
     require(_token == token, "provided token is not supported");
     require(msg.sender == omniBridge, "only omni bridge");
     require(_amount == uint256(_extData.extAmount), "amount from bridge is incorrect");
@@ -239,5 +248,26 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
       _register(_account);
     }
     _transact(_args, _extData);
+  }
+
+  function isValidSignature(Account memory _account, bytes memory _signature) public view returns (bool) {
+    bytes32 hashStruct = keccak256(abi.encode(ACCOUNT_TYPEHASH, _account.owner, keccak256(_account.publicKey)));
+    bytes32 hash = keccak256(abi.encodePacked(uint16(0x1901), domainSeparator(), hashStruct));
+
+    address signer = ECDSA.recover(hash, _signature);
+    return signer == _account.owner;
+  }
+
+  function domainSeparator() public view returns (bytes32) {
+    return
+      keccak256(
+        abi.encode(
+          keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+          keccak256(bytes("TornadoPool")),
+          keccak256(bytes("1")), // Version
+          L1_CHAIN_ID,
+          address(this)
+        )
+      );
   }
 }
