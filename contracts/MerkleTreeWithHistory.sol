@@ -43,7 +43,7 @@ contract MerkleTreeWithHistory is Initializable {
     hasher = IHasher(_hasher);
   }
 
-  function initialize() external initializer {
+  function _initialize() internal {
     for (uint32 i = 0; i < levels; i++) {
       filledSubtrees[i] = zeros(i);
     }

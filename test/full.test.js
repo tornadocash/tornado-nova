@@ -4,17 +4,15 @@ const { loadFixture } = waffle
 const { expect } = require('chai')
 const { utils } = ethers
 
-const { toBuffer } = require('ethereumjs-util')
-const { signTypedData, SignTypedDataVersion } = require('@metamask/eth-sig-util')
-
 const Utxo = require('../src/utxo')
 const { transaction, registerAndTransact, prepareTransaction } = require('../src/index')
 const { Keypair } = require('../src/keypair')
-const { EIP721Params, encodeDataForBridge } = require('./utils')
+const { encodeDataForBridge } = require('./utils')
 
 const MERKLE_TREE_HEIGHT = 5
-const L1ChainId = 1
-const SENDER_PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+const l1ChainId = 1
+const MINIMUM_WITHDRAWAL_AMOUNT = utils.parseEther(process.env.MINIMUM_WITHDRAWAL_AMOUNT || '0.05')
+const MAXIMUM_DEPOSIT_AMOUNT = utils.parseEther(process.env.MAXIMUM_DEPOSIT_AMOUNT || '1')
 
 describe('TornadoPool', function () {
   this.timeout(20000)
@@ -32,10 +30,10 @@ describe('TornadoPool', function () {
     const verifier16 = await deploy('Verifier16')
     const hasher = await deploy('Hasher')
 
-    const token = await deploy('PermittableToken', 'Wrapped ETH', 'WETH', 18, L1ChainId)
+    const token = await deploy('PermittableToken', 'Wrapped ETH', 'WETH', 18, l1ChainId)
     await token.mint(sender.address, utils.parseEther('10000'))
 
-    const amb = await deploy('MockAMB', gov.address, L1ChainId)
+    const amb = await deploy('MockAMB', gov.address, l1ChainId)
     const omniBridge = await deploy('MockOmniBridge', amb.address)
 
     /** @type {TornadoPool} */
@@ -48,9 +46,8 @@ describe('TornadoPool', function () {
       token.address,
       omniBridge.address,
       l1Unwrapper.address,
-      L1ChainId,
+      gov.address,
     )
-    await tornadoPoolImpl.initialize() // not necessary
 
     const proxy = await deploy(
       'CrossChainUpgradeableProxy',
@@ -58,12 +55,12 @@ describe('TornadoPool', function () {
       gov.address,
       [],
       amb.address,
-      L1ChainId,
+      l1ChainId,
     )
 
     const TornadoPool = await ethers.getContractFactory('TornadoPool')
     const tornadoPool = TornadoPool.attach(proxy.address)
-    await tornadoPool.initialize()
+    await tornadoPool.initialize(MINIMUM_WITHDRAWAL_AMOUNT, MAXIMUM_DEPOSIT_AMOUNT)
 
     await token.approve(tornadoPool.address, utils.parseEther('10000'))
 
@@ -156,7 +153,7 @@ describe('TornadoPool', function () {
     const { tornadoPool, token } = await loadFixture(fixture)
 
     // Alice deposits into tornado pool
-    const aliceDepositAmount = 1e7
+    const aliceDepositAmount = utils.parseEther('0.1')
     const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount })
     await transaction({ tornadoPool, outputs: [aliceDepositUtxo] })
 
@@ -165,10 +162,10 @@ describe('TornadoPool', function () {
     const bobAddress = bobKeypair.address() // contains only public key
 
     // Alice sends some funds to Bob
-    const bobSendAmount = 3e6
+    const bobSendAmount = utils.parseEther('0.06')
     const bobSendUtxo = new Utxo({ amount: bobSendAmount, keypair: Keypair.fromString(bobAddress) })
     const aliceChangeUtxo = new Utxo({
-      amount: aliceDepositAmount - bobSendAmount,
+      amount: aliceDepositAmount.sub(bobSendAmount),
       keypair: aliceDepositUtxo.keypair,
     })
     await transaction({ tornadoPool, inputs: [aliceDepositUtxo], outputs: [bobSendUtxo, aliceChangeUtxo] })
@@ -187,9 +184,9 @@ describe('TornadoPool', function () {
     expect(bobReceiveUtxo.amount).to.be.equal(bobSendAmount)
 
     // Bob withdraws a part of his funds from the shielded pool
-    const bobWithdrawAmount = 2e6
+    const bobWithdrawAmount = utils.parseEther('0.05')
     const bobEthAddress = '0xDeaD00000000000000000000000000000000BEEf'
-    const bobChangeUtxo = new Utxo({ amount: bobSendAmount - bobWithdrawAmount, keypair: bobKeypair })
+    const bobChangeUtxo = new Utxo({ amount: bobSendAmount.sub(bobWithdrawAmount), keypair: bobKeypair })
     await transaction({
       tornadoPool,
       inputs: [bobReceiveUtxo],
@@ -203,36 +200,19 @@ describe('TornadoPool', function () {
 
   it('should deposit from L1 and withdraw to L1', async function () {
     const { tornadoPool, token, omniBridge } = await loadFixture(fixture)
-    const owner = (await ethers.getSigners())[0].address
     const aliceKeypair = new Keypair() // contains private and public keys
 
     // Alice deposits into tornado pool
-    const aliceDepositAmount = 1e7
+    const aliceDepositAmount = utils.parseEther('0.07')
     const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount, keypair: aliceKeypair })
     const { args, extData } = await prepareTransaction({
       tornadoPool,
       outputs: [aliceDepositUtxo],
     })
 
-    const signature = signTypedData({
-      privateKey: toBuffer(SENDER_PRIVATE_KEY),
-      data: EIP721Params({
-        chainId: L1ChainId,
-        verifyingContract: tornadoPool.address,
-        owner,
-        publicKey: aliceKeypair.address(),
-      }),
-      version: SignTypedDataVersion.V4,
-    })
-
     const onTokenBridgedData = encodeDataForBridge({
-      account: {
-        owner,
-        publicKey: aliceKeypair.address(),
-      },
       proof: args,
       extData,
-      signature,
     })
 
     const onTokenBridgedTx = await tornadoPool.populateTransaction.onTokenBridged(
@@ -245,10 +225,10 @@ describe('TornadoPool', function () {
     await omniBridge.execute(tornadoPool.address, onTokenBridgedTx.data)
 
     // withdraws a part of his funds from the shielded pool
-    const aliceWithdrawAmount = 2e6
+    const aliceWithdrawAmount = utils.parseEther('0.06')
     const recipient = '0xDeaD00000000000000000000000000000000BEEf'
     const aliceChangeUtxo = new Utxo({
-      amount: aliceDepositAmount - aliceWithdrawAmount,
+      amount: aliceDepositAmount.sub(aliceWithdrawAmount),
       keypair: aliceKeypair,
     })
     await transaction({
@@ -267,6 +247,12 @@ describe('TornadoPool', function () {
 
   it('should work with 16 inputs', async function () {
     const { tornadoPool } = await loadFixture(fixture)
-    await transaction({ tornadoPool, inputs: [new Utxo(), new Utxo(), new Utxo()] })
+    const aliceDepositAmount = utils.parseEther('0.07')
+    const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount })
+    await transaction({
+      tornadoPool,
+      inputs: [new Utxo(), new Utxo(), new Utxo()],
+      outputs: [aliceDepositUtxo],
+    })
   })
 })

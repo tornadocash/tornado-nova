@@ -13,37 +13,16 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/contracts/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { IERC20Receiver, IERC6777 } from "./interfaces/IBridge.sol";
+import { IVerifier } from "./interfaces/IVerifier.sol";
 import "./MerkleTreeWithHistory.sol";
 
-interface IERC6777 is IERC20 {
-  function transferAndCall(
-    address,
-    uint256,
-    bytes calldata
-  ) external returns (bool);
-}
-
-interface IVerifier {
-  function verifyProof(bytes memory _proof, uint256[7] memory _input) external view returns (bool);
-
-  function verifyProof(bytes memory _proof, uint256[21] memory _input) external view returns (bool);
-}
-
-interface IERC20Receiver {
-  function onTokenBridged(
-    IERC6777 token,
-    uint256 value,
-    bytes calldata data
-  ) external;
-}
-
-contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
+contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard {
   int256 public constant MAX_EXT_AMOUNT = 2**248;
   uint256 public constant MAX_FEE = 2**248;
-  bytes32 public constant ACCOUNT_TYPEHASH = keccak256("TornadoAccount(address owner,bytes publicKey)");
-  uint256 public immutable L1_CHAIN_ID;
+  address public immutable governance;
 
   IVerifier public immutable verifier2;
   IVerifier public immutable verifier16;
@@ -51,7 +30,9 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
   address public immutable omniBridge;
   address public immutable l1Unwrapper;
 
-  uint256 public totalDeposited;
+  uint256 public lastBalance;
+  uint256 public minimalWithdrawalAmount;
+  uint256 public maximumDepositAmount;
   mapping(bytes32 => bool) public nullifierHashes;
 
   struct ExtData {
@@ -82,6 +63,11 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
   event NewNullifier(bytes32 nullifier);
   event PublicKey(address indexed owner, bytes key);
 
+  modifier onlyGovernance() {
+    require(msg.sender == governance, "only governance");
+    _;
+  }
+
   /**
     @dev The constructor
     @param _verifier2 the address of SNARK verifier for 2 inputs
@@ -95,27 +81,36 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     IERC6777 _token,
     address _omniBridge,
     address _l1Unwrapper,
-    uint256 _l1ChainId
+    address _governance
   ) MerkleTreeWithHistory(_levels, _hasher) {
     verifier2 = _verifier2;
     verifier16 = _verifier16;
     token = _token;
     omniBridge = _omniBridge;
     l1Unwrapper = _l1Unwrapper;
-    L1_CHAIN_ID = _l1ChainId;
+    governance = _governance;
+  }
+
+  function initialize(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) external initializer {
+    _configureLimits(_minimalWithdrawalAmount, _maximumDepositAmount);
+    super._initialize();
+  }
+
+  function configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) public onlyGovernance {
+    _configureLimits(_minimalWithdrawalAmount, _maximumDepositAmount);
   }
 
   function transact(Proof memory _args, ExtData memory _extData) public {
     if (_extData.extAmount > 0) {
       // for deposits from L2
       token.transferFrom(msg.sender, address(this), uint256(_extData.extAmount));
-      totalDeposited += uint256(_extData.extAmount);
+      require(uint256(_extData.extAmount) <= maximumDepositAmount, "amount is larger than maximumDepositAmount");
     }
 
     _transact(_args, _extData);
   }
 
-  function _transact(Proof memory _args, ExtData memory _extData) internal {
+  function _transact(Proof memory _args, ExtData memory _extData) internal nonReentrant {
     require(isKnownRoot(_args.root), "Invalid merkle root");
     for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
       require(!isSpent(_args.inputNullifiers[i]), "Input is already spent");
@@ -135,12 +130,13 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
       } else {
         token.transfer(_extData.recipient, uint256(-_extData.extAmount));
       }
-      totalDeposited -= uint256(-_extData.extAmount);
+      require(uint256(-_extData.extAmount) >= minimalWithdrawalAmount, "amount is less than minimalWithdrawalAmount"); // prevents ddos attack to Bridge
     }
     if (_extData.fee > 0) {
       token.transfer(_extData.relayer, _extData.fee);
     }
 
+    lastBalance = token.balanceOf(address(this));
     _insert(_args.outputCommitments[0], _args.outputCommitments[1]);
     emit NewCommitment(_args.outputCommitments[0], nextIndex - 2, _extData.encryptedOutput1);
     emit NewCommitment(_args.outputCommitments[1], nextIndex - 1, _extData.encryptedOutput2);
@@ -232,42 +228,17 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver {
     uint256 _amount,
     bytes calldata _data
   ) external override {
-    (Account memory _account, Proof memory _args, ExtData memory _extData, bytes memory _signature) = abi.decode(
-      _data,
-      (Account, Proof, ExtData, bytes)
-    );
-    require(isValidSignature(_account, _signature), "Invalid account signature");
+    (Proof memory _args, ExtData memory _extData) = abi.decode(_data, (Proof, ExtData));
     require(_token == token, "provided token is not supported");
     require(msg.sender == omniBridge, "only omni bridge");
-    require(_amount == uint256(_extData.extAmount), "amount from bridge is incorrect");
-    require(uint256(_extData.extAmount) + totalDeposited >= token.balanceOf(address(this)), "bridge did not send enough tokens");
-
-    totalDeposited += uint256(_extData.extAmount);
-
-    if (_account.owner != address(0) && _account.publicKey.length > 0) {
-      _register(_account);
-    }
+    require(_amount >= uint256(_extData.extAmount), "amount from bridge is incorrect");
+    require(token.balanceOf(address(this)) >= uint256(_extData.extAmount) + lastBalance, "bridge did not send enough tokens");
+    require(uint256(_extData.extAmount) <= maximumDepositAmount, "amount is larger than maximumDepositAmount");
     _transact(_args, _extData);
   }
 
-  function isValidSignature(Account memory _account, bytes memory _signature) public view returns (bool) {
-    bytes32 hashStruct = keccak256(abi.encode(ACCOUNT_TYPEHASH, _account.owner, keccak256(_account.publicKey)));
-    bytes32 hash = keccak256(abi.encodePacked(uint16(0x1901), domainSeparator(), hashStruct));
-
-    address signer = ECDSA.recover(hash, _signature);
-    return signer == _account.owner;
-  }
-
-  function domainSeparator() public view returns (bytes32) {
-    return
-      keccak256(
-        abi.encode(
-          keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-          keccak256(bytes("TornadoPool")),
-          keccak256(bytes("1")), // Version
-          L1_CHAIN_ID,
-          address(this)
-        )
-      );
+  function _configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) internal {
+    minimalWithdrawalAmount = _minimalWithdrawalAmount;
+    maximumDepositAmount = _maximumDepositAmount;
   }
 }

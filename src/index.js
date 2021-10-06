@@ -144,7 +144,7 @@ async function transaction({ tornadoPool, ...rest }) {
   })
 
   const receipt = await tornadoPool.transact(args, extData, {
-    gasLimit: 1e6,
+    gasLimit: 2e6,
   })
   return await receipt.wait()
 }

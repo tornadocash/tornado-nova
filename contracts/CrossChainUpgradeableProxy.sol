@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.0;
 
-import { IAMB } from "./interfaces/Bridge.sol";
-import "@openzeppelin/contracts/contracts/proxy/TransparentUpgradeableProxy.sol";
+import { IAMB } from "./interfaces/IBridge.sol";
+import "@openzeppelin/contracts/proxy/TransparentUpgradeableProxy.sol";
 
 /**
  * @dev TransparentUpgradeableProxy where admin acts from a different chain.
