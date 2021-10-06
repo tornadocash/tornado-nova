@@ -1,4 +1,5 @@
 const { ethers } = require('hardhat')
+const { utils } = ethers
 
 const MERKLE_TREE_HEIGHT = 23
 const { MINIMUM_WITHDRAWAL_AMOUNT, MAXIMUM_DEPOSIT_AMOUNT } = process.env
@@ -36,7 +37,7 @@ async function main() {
     token,
     omniBridge,
     l1Unwrapper,
-    l1ChainId,
+    govAddress,
   )
   await tornadoImpl.deployed()
   console.log(`TornadoPool implementation address: ${tornadoImpl.address}`)
@@ -47,7 +48,14 @@ async function main() {
   console.log(`proxy address: ${proxy.address}`)
 
   const tornadoPool = await Pool.attach(proxy.address)
-  await tornadoPool.initialize(MINIMUM_WITHDRAWAL_AMOUNT, MAXIMUM_DEPOSIT_AMOUNT)
+
+  await tornadoPool.initialize(
+    utils.parseEther(MINIMUM_WITHDRAWAL_AMOUNT),
+    utils.parseEther(MAXIMUM_DEPOSIT_AMOUNT),
+  )
+  console.log(
+    `Proxy initialized with MINIMUM_WITHDRAWAL_AMOUNT=${MINIMUM_WITHDRAWAL_AMOUNT} ETH and MAXIMUM_DEPOSIT_AMOUNT=${MAXIMUM_DEPOSIT_AMOUNT} ETH`,
+  )
 }
 
 main()
