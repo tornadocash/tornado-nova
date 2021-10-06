@@ -13,7 +13,6 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IERC20Receiver, IERC6777 } from "./interfaces/IBridge.sol";
 import { IVerifier } from "./interfaces/IVerifier.sol";
