@@ -1,5 +1,6 @@
 const { ethers } = require('hardhat')
 const { utils } = ethers
+const prompt = require('prompt-sync')()
 
 const MERKLE_TREE_HEIGHT = 23
 const { MINIMUM_WITHDRAWAL_AMOUNT, MAXIMUM_DEPOSIT_AMOUNT } = process.env
@@ -29,21 +30,34 @@ async function main() {
   console.log(`hasher: ${hasher.address}`)
 
   const Pool = await ethers.getContractFactory('TornadoPool')
-  const tornadoImpl = await Pool.deploy(
-    verifier2.address,
-    verifier16.address,
-    MERKLE_TREE_HEIGHT,
-    hasher.address,
-    token,
-    omniBridge,
-    l1Unwrapper,
-    govAddress,
+  console.log(
+    `constructor args:\n${JSON.stringify([
+      verifier2.address,
+      verifier16.address,
+      MERKLE_TREE_HEIGHT,
+      hasher.address,
+      token,
+      omniBridge,
+      l1Unwrapper,
+      govAddress,
+    ]).slice(1, -1)}\n`,
   )
-  await tornadoImpl.deployed()
-  console.log(`TornadoPool implementation address: ${tornadoImpl.address}`)
+  const tornadoImpl = prompt('Deploy tornado pool implementation and provide address here:\n')
+  // const tornadoImpl = await Pool.deploy(
+  //   verifier2.address,
+  //   verifier16.address,
+  //   MERKLE_TREE_HEIGHT,
+  //   hasher.address,
+  //   token,
+  //   omniBridge,
+  //   l1Unwrapper,
+  //   govAddress,
+  // )
+  // await tornadoImpl.deployed()
+  // console.log(`TornadoPool implementation address: ${tornadoImpl.address}`)
 
   const CrossChainUpgradeableProxy = await ethers.getContractFactory('CrossChainUpgradeableProxy')
-  const proxy = await CrossChainUpgradeableProxy.deploy(tornadoImpl.address, govAddress, [], amb, l1ChainId)
+  const proxy = await CrossChainUpgradeableProxy.deploy(tornadoImpl, govAddress, [], amb, l1ChainId)
   await proxy.deployed()
   console.log(`proxy address: ${proxy.address}`)
 
