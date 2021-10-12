@@ -47,6 +47,7 @@ describe('TornadoPool', function () {
       omniBridge.address,
       l1Unwrapper.address,
       gov.address,
+      l1ChainId,
     )
 
     const proxy = await deploy(
@@ -80,6 +81,22 @@ describe('TornadoPool', function () {
       await expect(proxy.admin()).to.be.revertedWith(
         "Transaction reverted: function selector was not recognized and there's no fallback function",
       )
+    })
+
+    it('should configure', async () => {
+      const { tornadoPool, amb } = await loadFixture(fixture)
+      const newWithdrawalLimit = utils.parseEther('0.01337')
+      const newDepositLimit = utils.parseEther('1337')
+
+      const { data } = await tornadoPool.populateTransaction.configureLimits(
+        newWithdrawalLimit,
+        newDepositLimit,
+      )
+
+      await amb.execute(tornadoPool.address, data)
+
+      expect(await tornadoPool.maximumDepositAmount()).to.be.equal(newDepositLimit)
+      expect(await tornadoPool.minimalWithdrawalAmount()).to.be.equal(newWithdrawalLimit)
     })
   })
 

@@ -11,7 +11,7 @@ async function main() {
   const omniBridge = '0x59447362798334d3485c64D1e4870Fde2DDC0d75'
   const amb = '0x162e898bd0aacb578c8d5f8d6ca588c13d2a383f'
   const token = '0xCa8d20f3e0144a72C6B5d576e9Bd3Fd8557E2B04' // WBNB
-  const l1Unwrapper = '0xcf35E84bbA3506BB97cf6fAEFe6cc1A9bd843Fc2' // WBNB -> BNB
+  const l1Unwrapper = '0x2353Dcda746fa1AAD17C5650Ddf2A20112862197' // WBNB -> BNB
   const l1ChainId = 56
 
   const Verifier2 = await ethers.getContractFactory('Verifier2')
@@ -40,6 +40,7 @@ async function main() {
       omniBridge,
       l1Unwrapper,
       govAddress,
+      l1ChainId,
     ]).slice(1, -1)}\n`,
   )
   const tornadoImpl = prompt('Deploy tornado pool implementation and provide address here:\n')

@@ -14,14 +14,14 @@ pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { IERC20Receiver, IERC6777 } from "./interfaces/IBridge.sol";
+import { IERC20Receiver, IERC6777, IOmniBridge } from "./interfaces/IBridge.sol";
+import { CrossChainGuard } from "./bridge/CrossChainGuard.sol";
 import { IVerifier } from "./interfaces/IVerifier.sol";
 import "./MerkleTreeWithHistory.sol";
 
-contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard {
+contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, CrossChainGuard {
   int256 public constant MAX_EXT_AMOUNT = 2**248;
   uint256 public constant MAX_FEE = 2**248;
-  address public immutable governance;
 
   IVerifier public immutable verifier2;
   IVerifier public immutable verifier16;
@@ -63,7 +63,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard {
   event PublicKey(address indexed owner, bytes key);
 
   modifier onlyGovernance() {
-    require(msg.sender == governance, "only governance");
+    require(isCalledByOwner(), "only governance");
     _;
   }
 
@@ -80,14 +80,17 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard {
     IERC6777 _token,
     address _omniBridge,
     address _l1Unwrapper,
-    address _governance
-  ) MerkleTreeWithHistory(_levels, _hasher) {
+    address _governance,
+    uint256 _l1ChainId
+  )
+    MerkleTreeWithHistory(_levels, _hasher)
+    CrossChainGuard(address(IOmniBridge(_omniBridge).bridgeContract()), _l1ChainId, _governance)
+  {
     verifier2 = _verifier2;
     verifier16 = _verifier16;
     token = _token;
     omniBridge = _omniBridge;
     l1Unwrapper = _l1Unwrapper;
-    governance = _governance;
   }
 
   function initialize(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) external initializer {

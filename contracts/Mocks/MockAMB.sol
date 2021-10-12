@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.0;
 
-import { IAMB } from "../CrossChainUpgradeableProxy.sol";
+import { IAMB } from "../interfaces/IBridge.sol";
 
 contract MockAMB is IAMB {
   address public xDomainMessageSender;
