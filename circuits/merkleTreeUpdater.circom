@@ -4,7 +4,7 @@ include "./merkleTree.circom";
 // inserts a subtree into a merkle tree
 // checks that tree previously contained zeroes is the same positions
 // zeroSubtreeRoot is a root of a subtree that contains only zeroes
-template TreeUpdater(levels, subtreeLevels, zeroSubtreeRoot) {
+template MerkleTreeUpdater(levels, subtreeLevels, zeroSubtreeRoot) {
     var remainingLevels = levels - subtreeLevels;
 
     signal input oldRoot;

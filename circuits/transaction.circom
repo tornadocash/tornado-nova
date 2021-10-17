@@ -1,7 +1,6 @@
 include "../node_modules/circomlib/circuits/poseidon.circom";
 include "./merkleProof.circom"
-include "./treeUpdater.circom"
-include "./utils.circom"
+include "./keypair.circom"
 
 /*
 Utxo structure:
