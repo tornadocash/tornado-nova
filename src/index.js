@@ -42,9 +42,6 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
     output.index = tree.elements().length
     tree.insert(output.getCommitment())
   }
-  const outputIndex = tree.elements().length - 1
-  const outputPath = tree.path(outputIndex).pathElements
-  const outputBatchBits = Math.log2(outputs.length)
 
   const extData = {
     recipient: toFixedHex(recipient, 20),
@@ -75,8 +72,6 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
     outAmount: outputs.map((x) => x.amount),
     outBlinding: outputs.map((x) => x.blinding),
     outPubkey: outputs.map((x) => x.keypair.pubkey),
-    outPathIndices: outputIndex >> outputBatchBits,
-    outPathElements: outputPath.slice(outputBatchBits),
   }
 
   const proof = await prove(input, `./artifacts/circuits/transaction${inputs.length}`)

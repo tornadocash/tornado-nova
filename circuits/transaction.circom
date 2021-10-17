@@ -36,8 +36,6 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     signal private input outAmount[nOuts];
     signal private input outBlinding[nOuts];
     signal private input outPubkey[nOuts];
-    signal private input outPathIndices;
-    signal private input outPathElements[levels - 1];
 
     component inKeypair[nIns];
     component inUtxoHasher[nIns];
