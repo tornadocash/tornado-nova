@@ -1,3 +1,4 @@
+include "../node_modules/circomlib/circuits/poseidon.circom";
 include "./merkleProof.circom"
 include "./treeUpdater.circom"
 include "./utils.circom"
@@ -49,19 +50,19 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
         inKeypair[tx] = Keypair();
         inKeypair[tx].privateKey <== inPrivateKey[tx];
 
-        inUtxoHasher[tx] = TransactionHasher();
-        inUtxoHasher[tx].amount <== inAmount[tx];
-        inUtxoHasher[tx].blinding <== inBlinding[tx];
-        inUtxoHasher[tx].publicKey <== inKeypair[tx].publicKey;
+        inUtxoHasher[tx] = Poseidon(3);
+        inUtxoHasher[tx].inputs[0] <== inAmount[tx];
+        inUtxoHasher[tx].inputs[1] <== inBlinding[tx];
+        inUtxoHasher[tx].inputs[2] <== inKeypair[tx].publicKey;
 
-        nullifierHasher[tx] = NullifierHasher();
-        nullifierHasher[tx].commitment <== inUtxoHasher[tx].commitment;
-        nullifierHasher[tx].merklePath <== inPathIndices[tx];
-        nullifierHasher[tx].privateKey <== inPrivateKey[tx];
-        nullifierHasher[tx].nullifier === inputNullifier[tx];
+        nullifierHasher[tx] = Poseidon(3);
+        nullifierHasher[tx].inputs[0] <== inUtxoHasher[tx].out;
+        nullifierHasher[tx].inputs[1] <== inPathIndices[tx];
+        nullifierHasher[tx].inputs[2] <== inPrivateKey[tx];
+        nullifierHasher[tx].out === inputNullifier[tx];
 
         tree[tx] = MerkleProof(levels);
-        tree[tx].leaf <== inUtxoHasher[tx].commitment;
+        tree[tx].leaf <== inUtxoHasher[tx].out;
         tree[tx].pathIndices <== inPathIndices[tx];
         for (var i = 0; i < levels; i++) {
             tree[tx].pathElements[i] <== inPathElements[tx][i];
@@ -86,11 +87,11 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
 
     // verify correctness of transaction outputs
     for (var tx = 0; tx < nOuts; tx++) {
-        outUtxoHasher[tx] = TransactionHasher();
-        outUtxoHasher[tx].amount <== outAmount[tx];
-        outUtxoHasher[tx].blinding <== outBlinding[tx];
-        outUtxoHasher[tx].publicKey <== outPubkey[tx];
-        outUtxoHasher[tx].commitment === outputCommitment[tx];
+        outUtxoHasher[tx] = Poseidon(3);
+        outUtxoHasher[tx].inputs[0] <== outAmount[tx];
+        outUtxoHasher[tx].inputs[1] <== outBlinding[tx];
+        outUtxoHasher[tx].inputs[2] <== outPubkey[tx];
+        outUtxoHasher[tx].out === outputCommitment[tx];
 
         // Check that amount fits into 248 bits to prevent overflow
         outAmountCheck[tx] = Num2Bits(248);
