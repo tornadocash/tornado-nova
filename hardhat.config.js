@@ -54,6 +54,14 @@ const config = {
             mnemonic: 'test test test test test test test test test test test junk',
           },
     },
+    mainnet: {
+      url: process.env.ETH_RPC || '',
+      accounts: process.env.PRIVATE_KEY
+        ? [process.env.PRIVATE_KEY]
+        : {
+            mnemonic: 'test test test test test test test test test test test junk',
+          },
+    },
   },
   mocha: {
     timeout: 600000000,
