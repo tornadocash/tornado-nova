@@ -8,7 +8,8 @@
   },
   "scripts": {
     "circuit": "./scripts/buildCircuit.sh 2 && ./scripts/buildCircuit.sh 16",
-    "circuit_prod": "rm -rf ./artifacts/circuits && ./scripts/buildCircuit_prod.sh 2 && ./scripts/buildCircuit_prod.sh 16 && tar -czvf artifacts/circuits.tar.gz artifacts/circuits",
+    "circuit_prod": "rm -rf ./artifacts/circuits && yarn changeTreeHeight 23 && ./scripts/buildCircuit_prod.sh 2 && ./scripts/buildCircuit_prod.sh 16 && tar -czvf artifacts/circuits.tar.gz artifacts/circuits",
+    "changeTreeHeight": "./scripts/changeTreeHeight.sh",
     "compile": "npx hardhat compile",
     "build": "npm run circuit && npm run compile",
     "deploy": "npx hardhat run scripts/deploy.js --network optimism",
