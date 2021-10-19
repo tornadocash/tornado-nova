@@ -1,8 +1,12 @@
-/* eslint-disable indent */
+/* eslint-disable indent, no-undef */
 require('@typechain/hardhat')
 require('@nomiclabs/hardhat-ethers')
 require('@nomiclabs/hardhat-waffle')
 require('dotenv').config()
+
+task('hasher', 'Compile Poseidon hasher', () => {
+  require('./scripts/compileHasher')
+})
 
 const config = {
   solidity: {
