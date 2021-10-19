@@ -50,18 +50,20 @@ describe('TornadoPool', function () {
       l1ChainId,
     )
 
+    const { data } = await tornadoPoolImpl.populateTransaction.initialize(
+      MINIMUM_WITHDRAWAL_AMOUNT,
+      MAXIMUM_DEPOSIT_AMOUNT,
+    )
     const proxy = await deploy(
       'CrossChainUpgradeableProxy',
       tornadoPoolImpl.address,
       gov.address,
-      [],
+      data,
       amb.address,
       l1ChainId,
     )
 
-    const TornadoPool = await ethers.getContractFactory('TornadoPool')
-    const tornadoPool = TornadoPool.attach(proxy.address)
-    await tornadoPool.initialize(MINIMUM_WITHDRAWAL_AMOUNT, MAXIMUM_DEPOSIT_AMOUNT)
+    const tornadoPool = tornadoPoolImpl.attach(proxy.address)
 
     await token.approve(tornadoPool.address, utils.parseEther('10000'))
 
