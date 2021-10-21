@@ -98,10 +98,6 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     super._initialize();
   }
 
-  function configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) public onlyGovernance {
-    _configureLimits(_minimalWithdrawalAmount, _maximumDepositAmount);
-  }
-
   function transact(Proof memory _args, ExtData memory _extData) public {
     if (_extData.extAmount > 0) {
       // for deposits from L2
@@ -112,39 +108,36 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     _transact(_args, _extData);
   }
 
-  function _transact(Proof memory _args, ExtData memory _extData) internal nonReentrant {
-    require(isKnownRoot(_args.root), "Invalid merkle root");
-    for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
-      require(!isSpent(_args.inputNullifiers[i]), "Input is already spent");
-    }
-    require(uint256(_args.extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
-    require(_args.publicAmount == calculatePublicAmount(_extData.extAmount, _extData.fee), "Invalid public amount");
-    require(verifyProof(_args), "Invalid transaction proof");
+  function register(Account memory _account) public {
+    require(_account.owner == msg.sender, "only owner can be registered");
+    _register(_account);
+  }
 
-    for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
-      nullifierHashes[_args.inputNullifiers[i]] = true;
-    }
+  function registerAndTransact(
+    Account memory _account,
+    Proof memory _proofArgs,
+    ExtData memory _extData
+  ) public {
+    register(_account);
+    transact(_proofArgs, _extData);
+  }
 
-    if (_extData.extAmount < 0) {
-      require(_extData.recipient != address(0), "Can't withdraw to zero address");
-      if (_extData.isL1Withdrawal) {
-        token.transferAndCall(omniBridge, uint256(-_extData.extAmount), abi.encodePacked(l1Unwrapper, _extData.recipient));
-      } else {
-        token.transfer(_extData.recipient, uint256(-_extData.extAmount));
-      }
-      require(uint256(-_extData.extAmount) >= minimalWithdrawalAmount, "amount is less than minimalWithdrawalAmount"); // prevents ddos attack to Bridge
-    }
-    if (_extData.fee > 0) {
-      token.transfer(_extData.relayer, _extData.fee);
-    }
+  function onTokenBridged(
+    IERC6777 _token,
+    uint256 _amount,
+    bytes calldata _data
+  ) external override {
+    (Proof memory _args, ExtData memory _extData) = abi.decode(_data, (Proof, ExtData));
+    require(_token == token, "provided token is not supported");
+    require(msg.sender == omniBridge, "only omni bridge");
+    require(_amount >= uint256(_extData.extAmount), "amount from bridge is incorrect");
+    require(token.balanceOf(address(this)) >= uint256(_extData.extAmount) + lastBalance, "bridge did not send enough tokens");
+    require(uint256(_extData.extAmount) <= maximumDepositAmount, "amount is larger than maximumDepositAmount");
+    _transact(_args, _extData);
+  }
 
-    lastBalance = token.balanceOf(address(this));
-    _insert(_args.outputCommitments[0], _args.outputCommitments[1]);
-    emit NewCommitment(_args.outputCommitments[0], nextIndex - 2, _extData.encryptedOutput1);
-    emit NewCommitment(_args.outputCommitments[1], nextIndex - 1, _extData.encryptedOutput2);
-    for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
-      emit NewNullifier(_args.inputNullifiers[i]);
-    }
+  function configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) public onlyGovernance {
+    _configureLimits(_minimalWithdrawalAmount, _maximumDepositAmount);
   }
 
   function calculatePublicAmount(int256 _extAmount, uint256 _fee) public pure returns (uint256) {
@@ -207,36 +200,43 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     }
   }
 
-  function register(Account memory _account) public {
-    require(_account.owner == msg.sender, "only owner can be registered");
-    _register(_account);
-  }
-
   function _register(Account memory _account) internal {
     emit PublicKey(_account.owner, _account.publicKey);
   }
 
-  function registerAndTransact(
-    Account memory _account,
-    Proof memory _proofArgs,
-    ExtData memory _extData
-  ) public {
-    register(_account);
-    transact(_proofArgs, _extData);
-  }
+  function _transact(Proof memory _args, ExtData memory _extData) internal nonReentrant {
+    require(isKnownRoot(_args.root), "Invalid merkle root");
+    for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
+      require(!isSpent(_args.inputNullifiers[i]), "Input is already spent");
+    }
+    require(uint256(_args.extDataHash) == uint256(keccak256(abi.encode(_extData))) % FIELD_SIZE, "Incorrect external data hash");
+    require(_args.publicAmount == calculatePublicAmount(_extData.extAmount, _extData.fee), "Invalid public amount");
+    require(verifyProof(_args), "Invalid transaction proof");
 
-  function onTokenBridged(
-    IERC6777 _token,
-    uint256 _amount,
-    bytes calldata _data
-  ) external override {
-    (Proof memory _args, ExtData memory _extData) = abi.decode(_data, (Proof, ExtData));
-    require(_token == token, "provided token is not supported");
-    require(msg.sender == omniBridge, "only omni bridge");
-    require(_amount >= uint256(_extData.extAmount), "amount from bridge is incorrect");
-    require(token.balanceOf(address(this)) >= uint256(_extData.extAmount) + lastBalance, "bridge did not send enough tokens");
-    require(uint256(_extData.extAmount) <= maximumDepositAmount, "amount is larger than maximumDepositAmount");
-    _transact(_args, _extData);
+    for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
+      nullifierHashes[_args.inputNullifiers[i]] = true;
+    }
+
+    if (_extData.extAmount < 0) {
+      require(_extData.recipient != address(0), "Can't withdraw to zero address");
+      if (_extData.isL1Withdrawal) {
+        token.transferAndCall(omniBridge, uint256(-_extData.extAmount), abi.encodePacked(l1Unwrapper, _extData.recipient));
+      } else {
+        token.transfer(_extData.recipient, uint256(-_extData.extAmount));
+      }
+      require(uint256(-_extData.extAmount) >= minimalWithdrawalAmount, "amount is less than minimalWithdrawalAmount"); // prevents ddos attack to Bridge
+    }
+    if (_extData.fee > 0) {
+      token.transfer(_extData.relayer, _extData.fee);
+    }
+
+    lastBalance = token.balanceOf(address(this));
+    _insert(_args.outputCommitments[0], _args.outputCommitments[1]);
+    emit NewCommitment(_args.outputCommitments[0], nextIndex - 2, _extData.encryptedOutput1);
+    emit NewCommitment(_args.outputCommitments[1], nextIndex - 1, _extData.encryptedOutput2);
+    for (uint256 i = 0; i < _args.inputNullifiers.length; i++) {
+      emit NewNullifier(_args.inputNullifiers[i]);
+    }
   }
 
   function _configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) internal {
