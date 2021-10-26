@@ -4,6 +4,7 @@ pragma abicoder v2;
 
 import "omnibridge/contracts/helpers/WETHOmnibridgeRouter.sol";
 
+/// @dev Extension for original WETHOmnibridgeRouter that stores TornadoPool account registrations.
 contract L1Helper is WETHOmnibridgeRouter {
   event PublicKey(address indexed owner, bytes key);
 
@@ -18,13 +19,12 @@ contract L1Helper is WETHOmnibridgeRouter {
     address _owner
   ) WETHOmnibridgeRouter(_bridge, _weth, _owner) {}
 
+  /** @dev Registers provided public key and its owner in pool
+   * @param _account pair of address and key
+   */
   function register(Account memory _account) public {
     require(_account.owner == msg.sender, "only owner can be registered");
     _register(_account);
-  }
-
-  function _register(Account memory _account) internal {
-    emit PublicKey(_account.owner, _account.publicKey);
   }
 
   /**
@@ -45,5 +45,9 @@ contract L1Helper is WETHOmnibridgeRouter {
     if (_account.owner == msg.sender) {
       _register(_account);
     }
+  }
+
+  function _register(Account memory _account) internal {
+    emit PublicKey(_account.owner, _account.publicKey);
   }
 }
