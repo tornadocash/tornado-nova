@@ -25,22 +25,16 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
 
   for (const input of inputs) {
     if (input.amount > 0) {
-      const index = tree.indexOf(toFixedHex(input.getCommitment()))
-      if (index < 0) {
+      input.index = tree.indexOf(toFixedHex(input.getCommitment()))
+      if (input.index < 0) {
         throw new Error(`Input commitment ${toFixedHex(input.getCommitment())} was not found`)
       }
-      inputMerklePathIndices.push(index)
-      inputMerklePathElements.push(tree.path(index).pathElements)
+      inputMerklePathIndices.push(input.index)
+      inputMerklePathElements.push(tree.path(input.index).pathElements)
     } else {
       inputMerklePathIndices.push(0)
       inputMerklePathElements.push(new Array(tree.levels).fill(0))
     }
-  }
-
-  const oldRoot = tree.root()
-  for (const output of outputs) {
-    output.index = tree.elements().length
-    tree.insert(output.getCommitment())
   }
 
   const extData = {
@@ -55,7 +49,7 @@ async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, rela
 
   const extDataHash = getExtDataHash(extData)
   let input = {
-    root: oldRoot,
+    root: tree.root(),
     inputNullifier: inputs.map((x) => x.getNullifier()),
     outputCommitment: outputs.map((x) => x.getCommitment()),
     publicAmount: BigNumber.from(extAmount).sub(fee).add(FIELD_SIZE).mod(FIELD_SIZE).toString(),
