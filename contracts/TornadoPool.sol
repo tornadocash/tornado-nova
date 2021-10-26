@@ -19,6 +19,9 @@ import { CrossChainGuard } from "./bridge/CrossChainGuard.sol";
 import { IVerifier } from "./interfaces/IVerifier.sol";
 import "./MerkleTreeWithHistory.sol";
 
+/** @dev This contract(pool) allows deposit of an arbitrary amount to it, shielded transfer to another registered user inside the pool
+ * and withdrawal from the pool. Project utilizes UTXO model to handle users' funds.
+ */
 contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, CrossChainGuard {
   int256 public constant MAX_EXT_AMOUNT = 2**248;
   uint256 public constant MAX_FEE = 2**248;
@@ -71,6 +74,13 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     @dev The constructor
     @param _verifier2 the address of SNARK verifier for 2 inputs
     @param _verifier16 the address of SNARK verifier for 16 inputs
+    @param _levels hight of the commitments merkle tree
+    @param _hasher hasher address for the merkle tree
+    @param _token token address for the pool
+    @param _omniBridge omniBridge address for specified token
+    @param _l1Unwrapper address of the L1Helper
+    @param _governance owner address
+    @param _l1ChainId chain id of L1
   */
   constructor(
     IVerifier _verifier2,
@@ -98,6 +108,8 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     super._initialize();
   }
 
+  /** @dev Main function that allows deposits, transfers and withdrawal.
+   */
   function transact(Proof memory _args, ExtData memory _extData) public {
     if (_extData.extAmount > 0) {
       // for deposits from L2
