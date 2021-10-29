@@ -155,12 +155,15 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     require(token.balanceOf(address(this)) >= uint256(_extData.extAmount) + lastBalance, "bridge did not send enough tokens");
     require(uint256(_extData.extAmount) <= maximumDepositAmount, "amount is larger than maximumDepositAmount");
     uint256 sentAmount = token.balanceOf(address(this)) - lastBalance;
-    try TornadoPool(address(this)).bridgeTransact(_args, _extData) {} catch (bytes memory) {
+    try TornadoPool(address(this)).onTransact(_args, _extData) {} catch (bytes memory) {
       token.transfer(multisig, sentAmount);
     }
   }
 
-  function bridgeTransact(Proof memory _args, ExtData memory _extData) external {
+  /**
+   * @dev Wrapper for the internal func _transact to call it using try-catch from onTokenBridged
+   */
+  function onTransact(Proof memory _args, ExtData memory _extData) external {
     require(msg.sender == address(this), "can be called only from onTokenBridged");
     _transact(_args, _extData);
   }

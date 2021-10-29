@@ -68,14 +68,14 @@ describe('TornadoPool', function () {
 
     await token.approve(tornadoPool.address, utils.parseEther('10000'))
 
-    return { tornadoPool, token, proxy, omniBridge, amb, gov }
+    return { tornadoPool, token, proxy, omniBridge, amb, gov, multisig }
   }
 
   describe('Upgradeability tests', () => {
     it('admin should be gov', async () => {
       const { proxy, amb, gov } = await loadFixture(fixture)
       const { data } = await proxy.populateTransaction.admin()
-      const { result } = await amb.callStatic.execute(proxy.address, data)
+      const { result } = await amb.callStatic.execute([{ who: proxy.address, callData: data }])
       expect('0x' + result.slice(26)).to.be.equal(gov.address.toLowerCase())
     })
 
@@ -96,7 +96,7 @@ describe('TornadoPool', function () {
         newDepositLimit,
       )
 
-      await amb.execute(tornadoPool.address, data)
+      await amb.execute([{ who: tornadoPool.address, callData: data }])
 
       expect(await tornadoPool.maximumDepositAmount()).to.be.equal(newDepositLimit)
       expect(await tornadoPool.minimalWithdrawalAmount()).to.be.equal(newWithdrawalLimit)
@@ -240,9 +240,14 @@ describe('TornadoPool', function () {
       aliceDepositUtxo.amount,
       onTokenBridgedData,
     )
-    // emulating bridge. first it sends tokens and then calls onTokenBridged method
-    await token.transfer(tornadoPool.address, aliceDepositAmount)
-    await omniBridge.execute(tornadoPool.address, onTokenBridgedTx.data)
+    // emulating bridge. first it sends tokens to omnibridge mock then it sends to the pool
+    await token.transfer(omniBridge.address, aliceDepositAmount)
+    const transferTx = await token.populateTransaction.transfer(tornadoPool.address, aliceDepositAmount)
+
+    await omniBridge.execute([
+      { who: token.address, callData: transferTx.data }, // send tokens to pool
+      { who: tornadoPool.address, callData: onTokenBridgedTx.data }, // call onTokenBridgedTx
+    ])
 
     // withdraws a part of his funds from the shielded pool
     const aliceWithdrawAmount = utils.parseEther('0.06')
@@ -263,6 +268,62 @@ describe('TornadoPool', function () {
     expect(recipientBalance).to.be.equal(0)
     const omniBridgeBalance = await token.balanceOf(omniBridge.address)
     expect(omniBridgeBalance).to.be.equal(aliceWithdrawAmount)
+  })
+
+  it('should transfer funds to multisig in case of L1 deposit fail', async function () {
+    const { tornadoPool, token, omniBridge, multisig } = await loadFixture(fixture)
+    const aliceKeypair = new Keypair() // contains private and public keys
+
+    // Alice deposits into tornado pool
+    const aliceDepositAmount = utils.parseEther('0.07')
+    const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount, keypair: aliceKeypair })
+    const { args, extData } = await prepareTransaction({
+      tornadoPool,
+      outputs: [aliceDepositUtxo],
+    })
+
+    args.proof = args.proof.slice(0, -2)
+
+    const onTokenBridgedData = encodeDataForBridge({
+      proof: args,
+      extData,
+    })
+
+    const onTokenBridgedTx = await tornadoPool.populateTransaction.onTokenBridged(
+      token.address,
+      aliceDepositUtxo.amount,
+      onTokenBridgedData,
+    )
+    // emulating bridge. first it sends tokens to omnibridge mock then it sends to the pool
+    await token.transfer(omniBridge.address, aliceDepositAmount)
+    const transferTx = await token.populateTransaction.transfer(tornadoPool.address, aliceDepositAmount)
+
+    const lastRoot = await tornadoPool.getLastRoot()
+    await omniBridge.execute([
+      { who: token.address, callData: transferTx.data }, // send tokens to pool
+      { who: tornadoPool.address, callData: onTokenBridgedTx.data }, // call onTokenBridgedTx
+    ])
+
+    const multisigBalance = await token.balanceOf(multisig.address)
+    expect(multisigBalance).to.be.equal(aliceDepositAmount)
+    expect(await tornadoPool.getLastRoot()).to.be.equal(lastRoot)
+  })
+
+  it('should revert if onTransact called directly', async () => {
+    const { tornadoPool } = await loadFixture(fixture)
+    const aliceKeypair = new Keypair() // contains private and public keys
+
+    // Alice deposits into tornado pool
+    const aliceDepositAmount = utils.parseEther('0.07')
+    const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount, keypair: aliceKeypair })
+    const { args, extData } = await prepareTransaction({
+      tornadoPool,
+      outputs: [aliceDepositUtxo],
+    })
+
+    await expect(tornadoPool.onTransact(args, extData)).to.be.revertedWith(
+      'can be called only from onTokenBridged',
+    )
   })
 
   it('should work with 16 inputs', async function () {
