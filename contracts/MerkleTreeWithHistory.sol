@@ -32,7 +32,7 @@ contract MerkleTreeWithHistory is Initializable {
   // it removes index range check on every interaction
   mapping(uint256 => bytes32) public filledSubtrees;
   mapping(uint256 => bytes32) public roots;
-  uint32 public constant ROOT_HISTORY_SIZE = 30;
+  uint32 public constant ROOT_HISTORY_SIZE = 100;
   uint32 public currentRootIndex = 0; // todo remove
   uint32 public nextIndex = 0;
 
