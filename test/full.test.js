@@ -25,7 +25,7 @@ describe('TornadoPool', function () {
 
   async function fixture() {
     require('../scripts/compileHasher')
-    const [sender, gov, l1Unwrapper] = await ethers.getSigners()
+    const [sender, gov, l1Unwrapper, multisig] = await ethers.getSigners()
     const verifier2 = await deploy('Verifier2')
     const verifier16 = await deploy('Verifier16')
     const hasher = await deploy('Hasher')
@@ -48,6 +48,7 @@ describe('TornadoPool', function () {
       l1Unwrapper.address,
       gov.address,
       l1ChainId,
+      multisig.address,
     )
 
     const { data } = await tornadoPoolImpl.populateTransaction.initialize(

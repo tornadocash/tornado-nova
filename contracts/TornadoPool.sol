@@ -31,6 +31,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
   IERC6777 public immutable token;
   address public immutable omniBridge;
   address public immutable l1Unwrapper;
+  address public immutable multisig;
 
   uint256 public lastBalance;
   uint256 public minimalWithdrawalAmount;
@@ -70,6 +71,11 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     _;
   }
 
+  modifier onlyMultisig() {
+    require(msg.sender == multisig, "only governance");
+    _;
+  }
+
   /**
     @dev The constructor
     @param _verifier2 the address of SNARK verifier for 2 inputs
@@ -81,6 +87,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     @param _l1Unwrapper address of the L1Helper
     @param _governance owner address
     @param _l1ChainId chain id of L1
+    @param _multisig multisig on L2
   */
   constructor(
     IVerifier _verifier2,
@@ -91,7 +98,8 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     address _omniBridge,
     address _l1Unwrapper,
     address _governance,
-    uint256 _l1ChainId
+    uint256 _l1ChainId,
+    address _multisig
   )
     MerkleTreeWithHistory(_levels, _hasher)
     CrossChainGuard(address(IOmniBridge(_omniBridge).bridgeContract()), _l1ChainId, _governance)
@@ -101,6 +109,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     token = _token;
     omniBridge = _omniBridge;
     l1Unwrapper = _l1Unwrapper;
+    multisig = _multisig;
   }
 
   function initialize(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) external initializer {
@@ -145,7 +154,38 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     require(_amount >= uint256(_extData.extAmount), "amount from bridge is incorrect");
     require(token.balanceOf(address(this)) >= uint256(_extData.extAmount) + lastBalance, "bridge did not send enough tokens");
     require(uint256(_extData.extAmount) <= maximumDepositAmount, "amount is larger than maximumDepositAmount");
+    uint256 sentAmount = token.balanceOf(address(this)) - lastBalance;
+    try TornadoPool(address(this)).bridgeTransact(_args, _extData) {} catch (bytes memory) {
+      token.transfer(multisig, sentAmount);
+    }
+  }
+
+  function bridgeTransact(Proof memory _args, ExtData memory _extData) external {
+    require(msg.sender == address(this), "can be called only from onTokenBridged");
     _transact(_args, _extData);
+  }
+
+  /// @dev Method to claim junk and accidentally sent tokens
+  function rescueTokens(
+    IERC6777 _token,
+    address payable _to,
+    uint256 _balance
+  ) external onlyMultisig {
+    require(_to != address(0), "TORN: can not send to zero address");
+    require(_token != token, "can not rescue pool asset");
+
+    if (_token == IERC6777(0)) {
+      // for Ether
+      uint256 totalBalance = address(this).balance;
+      uint256 balance = _balance == 0 ? totalBalance : _balance;
+      _to.transfer(balance);
+    } else {
+      // any other erc20
+      uint256 totalBalance = _token.balanceOf(address(this));
+      uint256 balance = _balance == 0 ? totalBalance : _balance;
+      require(balance > 0, "TORN: trying to send 0 balance");
+      _token.transfer(_to, balance);
+    }
   }
 
   function configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) public onlyGovernance {
