@@ -79,6 +79,17 @@ class Keypair {
   }
 
   /**
+   * Sign a message using keypair private key
+   *
+   * @param {string|number|BigNumber} commitment a hex string with commitment
+   * @param {string|number|BigNumber} merklePath a hex string with merkle path
+   * @returns {BigNumber} a hex string with signature
+   */
+  sign(commitment, merklePath) {
+    return poseidonHash([this.privkey, commitment, merklePath])
+  }
+
+  /**
    * Encrypt data using keypair encryption key
    *
    * @param {Buffer} bytes
