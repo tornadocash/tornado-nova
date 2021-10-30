@@ -6,12 +6,12 @@ include "./keypair.circom"
 Utxo structure:
 {
     amount,
-    blinding, // random number
     pubkey,
+    blinding, // random number
 }
 
-commitment = hash(amount, blinding, pubKey)
-nullifier = hash(commitment, privKey, merklePath)
+commitment = hash(amount, pubKey, blinding)
+nullifier = hash(commitment, merklePath, privKey)
 */
 
 // Universal JoinSplit transaction with nIns inputs and 2 outputs
@@ -26,16 +26,16 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     // data for transaction inputs
     signal         input inputNullifier[nIns];
     signal private input inAmount[nIns];
-    signal private input inBlinding[nIns];
     signal private input inPrivateKey[nIns];
+    signal private input inBlinding[nIns];
     signal private input inPathIndices[nIns];
     signal private input inPathElements[nIns][levels];
 
     // data for transaction outputs
     signal         input outputCommitment[nOuts];
     signal private input outAmount[nOuts];
-    signal private input outBlinding[nOuts];
     signal private input outPubkey[nOuts];
+    signal private input outBlinding[nOuts];
 
     component inKeypair[nIns];
     component inUtxoHasher[nIns];
@@ -51,8 +51,8 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
 
         inUtxoHasher[tx] = Poseidon(3);
         inUtxoHasher[tx].inputs[0] <== inAmount[tx];
-        inUtxoHasher[tx].inputs[1] <== inBlinding[tx];
-        inUtxoHasher[tx].inputs[2] <== inKeypair[tx].publicKey;
+        inUtxoHasher[tx].inputs[1] <== inKeypair[tx].publicKey;
+        inUtxoHasher[tx].inputs[2] <== inBlinding[tx];
 
         nullifierHasher[tx] = Poseidon(3);
         nullifierHasher[tx].inputs[0] <== inUtxoHasher[tx].out;
@@ -73,8 +73,8 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
         checkRoot[tx].in[1] <== tree[tx].root;
         checkRoot[tx].enabled <== inAmount[tx];
 
-        // We don't need to range check input amounts, since all inputs are valid UTXOs that 
-        // were already checked as outputs in the previous transaction (or zero amount UTXOs that don't 
+        // We don't need to range check input amounts, since all inputs are valid UTXOs that
+        // were already checked as outputs in the previous transaction (or zero amount UTXOs that don't
         // need to be checked either).
 
         sumIns += inAmount[tx];
@@ -88,8 +88,8 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
     for (var tx = 0; tx < nOuts; tx++) {
         outUtxoHasher[tx] = Poseidon(3);
         outUtxoHasher[tx].inputs[0] <== outAmount[tx];
-        outUtxoHasher[tx].inputs[1] <== outBlinding[tx];
-        outUtxoHasher[tx].inputs[2] <== outPubkey[tx];
+        outUtxoHasher[tx].inputs[1] <== outPubkey[tx];
+        outUtxoHasher[tx].inputs[2] <== outBlinding[tx];
         outUtxoHasher[tx].out === outputCommitment[tx];
 
         // Check that amount fits into 248 bits to prevent overflow
