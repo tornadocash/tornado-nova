@@ -150,4 +150,4 @@ async function registerAndTransact({ tornadoPool, account, ...rest }) {
   await receipt.wait()
 }
 
-module.exports = { transaction, registerAndTransact, prepareTransaction }
+module.exports = { transaction, registerAndTransact, prepareTransaction, buildMerkleTree }
