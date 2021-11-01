@@ -11,7 +11,7 @@ Utxo structure:
 }
 
 commitment = hash(amount, pubKey, blinding)
-nullifier = hash(commitment, merklePath, sign(commitment + merklePath, privKey))
+nullifier = hash(commitment, merklePath, sign(merklePath, privKey))
 */
 
 // Universal JoinSplit transaction with nIns inputs and 2 outputs
@@ -57,7 +57,6 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
 
         inSignature[tx] = Signature();
         inSignature[tx].privateKey <== inPrivateKey[tx];
-        inSignature[tx].commitment <== inUtxoHasher[tx].out;
         inSignature[tx].merklePath <== inPathIndices[tx];
 
         nullifierHasher[tx] = Poseidon(3);
