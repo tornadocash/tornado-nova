@@ -85,8 +85,8 @@ class Keypair {
    * @param {string|number|BigNumber} merklePath a hex string with merkle path
    * @returns {BigNumber} a hex string with signature
    */
-  sign(merklePath) {
-    return poseidonHash([this.privkey, merklePath])
+  sign(commitment, merklePath) {
+    return poseidonHash([this.privkey, commitment, merklePath])
   }
 
   /**

@@ -11,7 +11,7 @@ Utxo structure:
 }
 
 commitment = hash(amount, pubKey, blinding)
-nullifier = hash(commitment, merklePath, sign(merklePath, privKey))
+nullifier = hash(commitment, merklePath, sign(privKey, commitment, merklePath))
 */
 
 // Universal JoinSplit transaction with nIns inputs and 2 outputs
@@ -39,7 +39,7 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
 
     component inKeypair[nIns];
     component inSignature[nIns];
-    component inUtxoHasher[nIns];
+    component commitmentHasher[nIns];
     component nullifierHasher[nIns];
     component tree[nIns];
     component checkRoot[nIns];
@@ -50,23 +50,24 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
         inKeypair[tx] = Keypair();
         inKeypair[tx].privateKey <== inPrivateKey[tx];
 
-        inUtxoHasher[tx] = Poseidon(3);
-        inUtxoHasher[tx].inputs[0] <== inAmount[tx];
-        inUtxoHasher[tx].inputs[1] <== inKeypair[tx].publicKey;
-        inUtxoHasher[tx].inputs[2] <== inBlinding[tx];
+        commitmentHasher[tx] = Poseidon(3);
+        commitmentHasher[tx].inputs[0] <== inAmount[tx];
+        commitmentHasher[tx].inputs[1] <== inKeypair[tx].publicKey;
+        commitmentHasher[tx].inputs[2] <== inBlinding[tx];
 
         inSignature[tx] = Signature();
         inSignature[tx].privateKey <== inPrivateKey[tx];
+        inSignature[tx].commitment <== commitmentHasher[tx].out;
         inSignature[tx].merklePath <== inPathIndices[tx];
 
         nullifierHasher[tx] = Poseidon(3);
-        nullifierHasher[tx].inputs[0] <== inUtxoHasher[tx].out;
+        nullifierHasher[tx].inputs[0] <== commitmentHasher[tx].out;
         nullifierHasher[tx].inputs[1] <== inPathIndices[tx];
         nullifierHasher[tx].inputs[2] <== inSignature[tx].out;
         nullifierHasher[tx].out === inputNullifier[tx];
 
         tree[tx] = MerkleProof(levels);
-        tree[tx].leaf <== inUtxoHasher[tx].out;
+        tree[tx].leaf <== commitmentHasher[tx].out;
         tree[tx].pathIndices <== inPathIndices[tx];
         for (var i = 0; i < levels; i++) {
             tree[tx].pathElements[i] <== inPathElements[tx][i];

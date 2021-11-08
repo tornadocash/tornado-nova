@@ -377,8 +377,9 @@ describe('TornadoPool', function () {
         blinding: aliceDepositUtxo.blinding,
       },
       nullifier: {
+        commitment,
         merklePath: index,
-        signature: aliceDepositUtxo.keypair.sign(index),
+        signature: aliceDepositUtxo.keypair.sign(commitment, index),
       },
     }
 
