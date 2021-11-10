@@ -39,10 +39,10 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
 
     component inKeypair[nIns];
     component inSignature[nIns];
-    component commitmentHasher[nIns];
-    component nullifierHasher[nIns];
-    component tree[nIns];
-    component checkRoot[nIns];
+    component inCommitmentHasher[nIns];
+    component inNullifierHasher[nIns];
+    component inTree[nIns];
+    component inCheckRoot[nIns];
     var sumIns = 0;
 
     // verify correctness of transaction inputs
@@ -50,34 +50,34 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
         inKeypair[tx] = Keypair();
         inKeypair[tx].privateKey <== inPrivateKey[tx];
 
-        commitmentHasher[tx] = Poseidon(3);
-        commitmentHasher[tx].inputs[0] <== inAmount[tx];
-        commitmentHasher[tx].inputs[1] <== inKeypair[tx].publicKey;
-        commitmentHasher[tx].inputs[2] <== inBlinding[tx];
+        inCommitmentHasher[tx] = Poseidon(3);
+        inCommitmentHasher[tx].inputs[0] <== inAmount[tx];
+        inCommitmentHasher[tx].inputs[1] <== inKeypair[tx].publicKey;
+        inCommitmentHasher[tx].inputs[2] <== inBlinding[tx];
 
         inSignature[tx] = Signature();
         inSignature[tx].privateKey <== inPrivateKey[tx];
-        inSignature[tx].commitment <== commitmentHasher[tx].out;
+        inSignature[tx].commitment <== inCommitmentHasher[tx].out;
         inSignature[tx].merklePath <== inPathIndices[tx];
 
-        nullifierHasher[tx] = Poseidon(3);
-        nullifierHasher[tx].inputs[0] <== commitmentHasher[tx].out;
-        nullifierHasher[tx].inputs[1] <== inPathIndices[tx];
-        nullifierHasher[tx].inputs[2] <== inSignature[tx].out;
-        nullifierHasher[tx].out === inputNullifier[tx];
+        inNullifierHasher[tx] = Poseidon(3);
+        inNullifierHasher[tx].inputs[0] <== inCommitmentHasher[tx].out;
+        inNullifierHasher[tx].inputs[1] <== inPathIndices[tx];
+        inNullifierHasher[tx].inputs[2] <== inSignature[tx].out;
+        inNullifierHasher[tx].out === inputNullifier[tx];
 
-        tree[tx] = MerkleProof(levels);
-        tree[tx].leaf <== commitmentHasher[tx].out;
-        tree[tx].pathIndices <== inPathIndices[tx];
+        inTree[tx] = MerkleProof(levels);
+        inTree[tx].leaf <== inCommitmentHasher[tx].out;
+        inTree[tx].pathIndices <== inPathIndices[tx];
         for (var i = 0; i < levels; i++) {
-            tree[tx].pathElements[i] <== inPathElements[tx][i];
+            inTree[tx].pathElements[i] <== inPathElements[tx][i];
         }
 
         // check merkle proof only if amount is non-zero
-        checkRoot[tx] = ForceEqualIfEnabled();
-        checkRoot[tx].in[0] <== root;
-        checkRoot[tx].in[1] <== tree[tx].root;
-        checkRoot[tx].enabled <== inAmount[tx];
+        inCheckRoot[tx] = ForceEqualIfEnabled();
+        inCheckRoot[tx].in[0] <== root;
+        inCheckRoot[tx].in[1] <== inTree[tx].root;
+        inCheckRoot[tx].enabled <== inAmount[tx];
 
         // We don't need to range check input amounts, since all inputs are valid UTXOs that
         // were already checked as outputs in the previous transaction (or zero amount UTXOs that don't
@@ -86,17 +86,17 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
         sumIns += inAmount[tx];
     }
 
-    component outUtxoHasher[nOuts];
+    component outCommitmentHasher[nOuts];
     component outAmountCheck[nOuts];
     var sumOuts = 0;
 
     // verify correctness of transaction outputs
     for (var tx = 0; tx < nOuts; tx++) {
-        outUtxoHasher[tx] = Poseidon(3);
-        outUtxoHasher[tx].inputs[0] <== outAmount[tx];
-        outUtxoHasher[tx].inputs[1] <== outPubkey[tx];
-        outUtxoHasher[tx].inputs[2] <== outBlinding[tx];
-        outUtxoHasher[tx].out === outputCommitment[tx];
+        outCommitmentHasher[tx] = Poseidon(3);
+        outCommitmentHasher[tx].inputs[0] <== outAmount[tx];
+        outCommitmentHasher[tx].inputs[1] <== outPubkey[tx];
+        outCommitmentHasher[tx].inputs[2] <== outBlinding[tx];
+        outCommitmentHasher[tx].out === outputCommitment[tx];
 
         // Check that amount fits into 248 bits to prevent overflow
         outAmountCheck[tx] = Num2Bits(248);
