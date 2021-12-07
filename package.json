@@ -14,7 +14,6 @@
     "compile": "npx hardhat compile && yarn compile:hasher",
     "build": "npm run circuit && npm run compile",
     "deploy": "npx hardhat run scripts/deploy.js --network optimism",
-    "download": "curl -L https://github.com/tornadocash/tornado-pool/releases/download/ptau-download/ptau15 --create-dirs -o artifacts/circuits/ptau15",
     "test": "npx hardhat test",
     "eslint": "eslint --ext .js --ignore-path .gitignore .",
     "prettier:check": "prettier --check . --config .prettierrc",

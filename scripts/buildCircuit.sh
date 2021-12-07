@@ -2,11 +2,8 @@
 POWERS_OF_TAU=15 # circuit will support max 2^POWERS_OF_TAU constraints
 mkdir -p artifacts/circuits
 if [ ! -f artifacts/circuits/ptau$POWERS_OF_TAU ]; then
-  echo "Generating powers of tau file"
-  npx snarkjs powersoftau new bn128 $POWERS_OF_TAU artifacts/circuits/tmp_ptau$POWERS_OF_TAU
-  npx snarkjs powersoftau contribute artifacts/circuits/tmp_ptau$POWERS_OF_TAU artifacts/circuits/tmp2_ptau$POWERS_OF_TAU
-  npx snarkjs powersoftau prepare phase2 artifacts/circuits/tmp2_ptau$POWERS_OF_TAU artifacts/circuits/ptau$POWERS_OF_TAU
-  rm artifacts/circuits/tmp_ptau$POWERS_OF_TAU artifacts/circuits/tmp2_ptau$POWERS_OF_TAU
+  echo "Downloading powers of tau file"
+  curl -L https://hermez.s3-eu-west-1.amazonaws.com/powersOfTau28_hez_final_$POWERS_OF_TAU.ptau --create-dirs -o artifacts/circuits/ptau$POWERS_OF_TAU
 fi
 npx circom -v -r artifacts/circuits/transaction$1.r1cs -w artifacts/circuits/transaction$1.wasm -s artifacts/circuits/transaction$1.sym circuits/transaction$1.circom
 npx snarkjs groth16 setup artifacts/circuits/transaction$1.r1cs artifacts/circuits/ptau$POWERS_OF_TAU artifacts/circuits/tmp_transaction$1.zkey

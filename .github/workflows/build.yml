@@ -17,7 +17,6 @@ jobs:
       - run: yarn cache clean --all
       - run: yarn install --network-concurrency 1
       - run: yarn lint
-      - run: yarn download
       - run: yarn build
       - run: yarn test
       - name: Telegram Failure Notification
