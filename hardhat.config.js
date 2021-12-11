@@ -2,6 +2,7 @@
 require('@typechain/hardhat')
 require('@nomiclabs/hardhat-ethers')
 require('@nomiclabs/hardhat-waffle')
+require('@nomiclabs/hardhat-etherscan')
 require('dotenv').config()
 
 task('hasher', 'Compile Poseidon hasher', () => {
@@ -66,6 +67,9 @@ const config = {
             mnemonic: 'test test test test test test test test test test test junk',
           },
     },
+  },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_KEY,
   },
   mocha: {
     timeout: 600000000,
