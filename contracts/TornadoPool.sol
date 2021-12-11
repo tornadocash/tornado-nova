@@ -195,6 +195,22 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     _configureLimits(_minimalWithdrawalAmount, _maximumDepositAmount);
   }
 
+  function stressTest(
+    bytes32[] memory inputNullifiers,
+    bytes32[] memory outputCommitments,
+    bytes[] memory encryptedOutput1,
+    bytes[] memory encryptedOutput2
+  ) public {
+    for (uint256 i = 0; i < outputCommitments.length; i = i + 2) {
+      _insert(outputCommitments[i], outputCommitments[i + 1]);
+      emit NewCommitment(outputCommitments[i], nextIndex - 2, encryptedOutput1[i]);
+      emit NewCommitment(outputCommitments[i + 1], nextIndex - 1, encryptedOutput2[i + 1]);
+    }
+    for (uint256 i = 0; i < inputNullifiers.length; i++) {
+      emit NewNullifier(inputNullifiers[i]);
+    }
+  }
+
   function calculatePublicAmount(int256 _extAmount, uint256 _fee) public pure returns (uint256) {
     require(_fee < MAX_FEE, "Invalid fee");
     require(_extAmount > -MAX_EXT_AMOUNT && _extAmount < MAX_EXT_AMOUNT, "Invalid ext amount");
