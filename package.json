@@ -27,7 +27,7 @@
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin": "git+https://github.com/tornadocash/openzeppelin-contracts.git#6e46aa6946a7f215e7604169ddf46e1aebea850f",
-    "@openzeppelin/contracts-upgradeable": "3.4.2",
+    "@openzeppelin/contracts-upgradeable": "4.4.1",
     "@typechain/ethers-v5": "^7.0.1",
     "@typechain/hardhat": "^2.3.0",
     "bignumber.js": "^9.0.0",
