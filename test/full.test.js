@@ -35,7 +35,7 @@ describe('TornadoPool', function () {
     await token.mint(sender.address, utils.parseEther('10000'))
 
     const l1Token = await deploy('WETH', 'Wrapped ETH', 'WETH')
-    await l1Token.deposit({value: utils.parseEther('3')})
+    await l1Token.deposit({ value: utils.parseEther('3') })
 
     const amb = await deploy('MockAMB', gov.address, l1ChainId)
     const omniBridge = await deploy('MockOmniBridge', amb.address)

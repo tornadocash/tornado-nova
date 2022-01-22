@@ -16,7 +16,17 @@ async function buildMerkleTree({ tornadoPool }) {
   return new MerkleTree(MERKLE_TREE_HEIGHT, leaves, { hashFunction: poseidonHash2 })
 }
 
-async function getProof({ inputs, outputs, tree, extAmount, fee, recipient, relayer, isL1Withdrawal, l1Fee }) {
+async function getProof({
+  inputs,
+  outputs,
+  tree,
+  extAmount,
+  fee,
+  recipient,
+  relayer,
+  isL1Withdrawal,
+  l1Fee,
+}) {
   inputs = shuffle(inputs)
   outputs = shuffle(outputs)
 

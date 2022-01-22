@@ -67,22 +67,22 @@ contract L1Unwrapper is WETHOmnibridgeRouter {
   }
 
   /**
-  * @dev Bridged callback function used for unwrapping received tokens.
-  * Can only be called by the associated Omnibridge contract.
-  * @param _token bridged token contract address, should be WETH.
-  * @param _value amount of bridged/received tokens.
-  * @param _data extra data passed alongside with relayTokensAndCall on the other side of the bridge.
-  * Should contain coins receiver address and L1 executer fee amount.
-  */
+   * @dev Bridged callback function used for unwrapping received tokens.
+   * Can only be called by the associated Omnibridge contract.
+   * @param _token bridged token contract address, should be WETH.
+   * @param _value amount of bridged/received tokens.
+   * @param _data extra data passed alongside with relayTokensAndCall on the other side of the bridge.
+   * Should contain coins receiver address and L1 executer fee amount.
+   */
   function onTokenBridged(
     address _token,
     uint256 _value,
     bytes memory _data
-  ) override external {
+  ) external override {
     require(_token == address(WETH));
     require(msg.sender == address(bridge));
     require(_data.length == 52);
-    
+
     WETH.withdraw(_value);
 
     uint256 l1Fee = BytesHelper.sliceToUint(_data, 20);
