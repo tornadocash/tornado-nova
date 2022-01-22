@@ -14,9 +14,13 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "omnibridge/contracts/helpers/WETHOmnibridgeRouter.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
+import { BytesHelper } from "../libraries/Bytes.sol";
 
 /// @dev Extension for original WETHOmnibridgeRouter that stores TornadoPool account registrations.
-contract L1Helper is WETHOmnibridgeRouter {
+contract L1Unwrapper is WETHOmnibridgeRouter {
+  using SafeMath for uint256;
+
   event PublicKey(address indexed owner, bytes key);
 
   struct Account {
@@ -60,5 +64,30 @@ contract L1Helper is WETHOmnibridgeRouter {
 
   function _register(Account memory _account) internal {
     emit PublicKey(_account.owner, _account.publicKey);
+  }
+
+  /**
+  * @dev Bridged callback function used for unwrapping received tokens.
+  * Can only be called by the associated Omnibridge contract.
+  * @param _token bridged token contract address, should be WETH.
+  * @param _value amount of bridged/received tokens.
+  * @param _data extra data passed alongside with relayTokensAndCall on the other side of the bridge.
+  * Should contain coins receiver address and L1 executer fee amount.
+  */
+  function onTokenBridged(
+    address _token,
+    uint256 _value,
+    bytes memory _data
+  ) override external {
+    require(_token == address(WETH));
+    require(msg.sender == address(bridge));
+    require(_data.length == 52);
+    
+    WETH.withdraw(_value);
+
+    uint256 l1Fee = BytesHelper.sliceToUint(_data, 20);
+
+    AddressHelper.safeSendValue(payable(BytesHelper.bytesToAddress(_data)), _value.sub(l1Fee));
+    AddressHelper.safeSendValue(payable(tx.origin), l1Fee);
   }
 }

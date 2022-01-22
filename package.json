@@ -44,7 +44,7 @@
     "fixed-merkle-tree": "^0.5.1",
     "hardhat": "^2.3.0",
     "mocha": "^9.1.0",
-    "omnibridge": "git+https://github.com/peppersec/omnibridge.git#aa3a970c29752a4da5f3fc7ccf0733783c1acf0b",
+    "omnibridge": "git+https://github.com/peppersec/omnibridge.git#1f0baaa34bbfdc8f2ddb37c0554ad7d964a96803",
     "prompt-sync": "^4.2.0",
     "snarkjs": "git+https://github.com/tornadocash/snarkjs.git#f37f146948f3b28086493e71512006b030588fc2",
     "tmp-promise": "^3.0.2",

@@ -77,7 +77,7 @@ describe('MerkleTreeWithHistory', function () {
 
       merkleTreeWithHistory.insert(toFixedHex(678), toFixedHex(876))
       tree.bulkInsert([678, 876])
-      expect(tree.root()).to.be.be.equal(await merkleTreeWithHistory.getLastRoot())
+      expect(tree.root()._hex).to.be.be.equal(await merkleTreeWithHistory.getLastRoot())
     })
 
     it('hasher gas', async () => {
