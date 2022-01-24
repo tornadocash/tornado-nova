@@ -25,6 +25,7 @@ import "./MerkleTreeWithHistory.sol";
 contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, CrossChainGuard {
   int256 public constant MAX_EXT_AMOUNT = 2**248;
   uint256 public constant MAX_FEE = 2**248;
+  uint256 public constant MIN_EXT_AMOUNT_LIMIT = 0.5 ether;
 
   IVerifier public immutable verifier2;
   IVerifier public immutable verifier16;
@@ -295,6 +296,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
   }
 
   function _configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) internal {
+    require(_minimalWithdrawalAmount < MIN_EXT_AMOUNT_LIMIT, "minimalWithdrawal over limit");
     minimalWithdrawalAmount = _minimalWithdrawalAmount;
     maximumDepositAmount = _maximumDepositAmount;
   }
