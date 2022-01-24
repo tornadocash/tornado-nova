@@ -67,11 +67,6 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
   event NewNullifier(bytes32 nullifier);
   event PublicKey(address indexed owner, bytes key);
 
-  modifier onlyGovernance() {
-    require(isCalledByOwner(), "only governance");
-    _;
-  }
-
   modifier onlyMultisig() {
     require(msg.sender == multisig, "only governance");
     _;
@@ -192,7 +187,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     }
   }
 
-  function configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) public onlyGovernance {
+  function configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) public onlyMultisig {
     _configureLimits(_minimalWithdrawalAmount, _maximumDepositAmount);
   }
 
