@@ -96,10 +96,7 @@ describe('TornadoPool', function () {
       const newWithdrawalLimit = utils.parseEther('0.01337')
       const newDepositLimit = utils.parseEther('1337')
 
-      await tornadoPool.connect(multisig).configureLimits(
-        newWithdrawalLimit,
-        newDepositLimit,
-      )
+      await tornadoPool.connect(multisig).configureLimits(newWithdrawalLimit, newDepositLimit)
 
       expect(await tornadoPool.maximumDepositAmount()).to.be.equal(newDepositLimit)
       expect(await tornadoPool.minimalWithdrawalAmount()).to.be.equal(newWithdrawalLimit)
