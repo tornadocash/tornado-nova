@@ -92,16 +92,14 @@ describe('TornadoPool', function () {
     })
 
     it('should configure', async () => {
-      const { tornadoPool, amb } = await loadFixture(fixture)
+      const { tornadoPool, multisig } = await loadFixture(fixture)
       const newWithdrawalLimit = utils.parseEther('0.01337')
       const newDepositLimit = utils.parseEther('1337')
 
-      const { data } = await tornadoPool.populateTransaction.configureLimits(
+      await tornadoPool.connect(multisig).configureLimits(
         newWithdrawalLimit,
         newDepositLimit,
       )
-
-      await amb.execute([{ who: tornadoPool.address, callData: data }])
 
       expect(await tornadoPool.maximumDepositAmount()).to.be.equal(newDepositLimit)
       expect(await tornadoPool.minimalWithdrawalAmount()).to.be.equal(newWithdrawalLimit)
