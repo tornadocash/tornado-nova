@@ -71,13 +71,13 @@ describe('MerkleTreeWithHistory', function () {
     it('should insert', async () => {
       const { merkleTreeWithHistory } = await loadFixture(fixture)
       const tree = getNewTree()
-      merkleTreeWithHistory.insert(toFixedHex(123), toFixedHex(456))
+      await merkleTreeWithHistory.insert(toFixedHex(123), toFixedHex(456))
       tree.bulkInsert([123, 456])
       expect(tree.root()).to.be.be.equal(await merkleTreeWithHistory.getLastRoot())
 
-      merkleTreeWithHistory.insert(toFixedHex(678), toFixedHex(876))
+      await merkleTreeWithHistory.insert(toFixedHex(678), toFixedHex(876))
       tree.bulkInsert([678, 876])
-      expect(tree.root()._hex).to.be.be.equal(await merkleTreeWithHistory.getLastRoot())
+      expect(tree.root()).to.be.be.equal(await merkleTreeWithHistory.getLastRoot())
     })
 
     it('hasher gas', async () => {
