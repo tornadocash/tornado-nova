@@ -296,7 +296,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
   }
 
   function _configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) internal {
-    require(_minimalWithdrawalAmount < MIN_EXT_AMOUNT_LIMIT, "minimalWithdrawal over limit");
+    require(_minimalWithdrawalAmount <= MIN_EXT_AMOUNT_LIMIT, "minimalWithdrawal over limit");
     minimalWithdrawalAmount = _minimalWithdrawalAmount;
     maximumDepositAmount = _maximumDepositAmount;
   }
