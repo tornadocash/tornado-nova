@@ -6913,9 +6913,9 @@ oboe@2.1.5:
   dependencies:
     http-https "^1.0.0"
 
-"omnibridge@git+https://github.com/peppersec/omnibridge.git#1f0baaa34bbfdc8f2ddb37c0554ad7d964a96803":
+"omnibridge@git+https://github.com/peppersec/omnibridge.git#30081f7a735eb03c9d6821a9617cc28efe71a682":
   version "1.1.0"
-  resolved "git+https://github.com/peppersec/omnibridge.git#1f0baaa34bbfdc8f2ddb37c0554ad7d964a96803"
+  resolved "git+https://github.com/peppersec/omnibridge.git#30081f7a735eb03c9d6821a9617cc28efe71a682"
   dependencies:
     axios "^0.21.0"
     bignumber.js "^9.0.1"
