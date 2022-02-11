@@ -9,6 +9,8 @@ const { transaction, registerAndTransact, prepareTransaction, buildMerkleTree } 
 const { toFixedHex, poseidonHash } = require('../src/utils')
 const { Keypair } = require('../src/keypair')
 const { encodeDataForBridge } = require('./utils')
+const config = require('../config')
+const { generate } = require('../src/0_generateAddresses')
 
 const MERKLE_TREE_HEIGHT = 5
 const l1ChainId = 1
@@ -39,7 +41,16 @@ describe('TornadoPool', function () {
 
     const amb = await deploy('MockAMB', gov.address, l1ChainId)
     const omniBridge = await deploy('MockOmniBridge', amb.address)
-    const l1Unwrapper = await deploy('L1Unwrapper', amb.address, l1Token.address, gov.address)
+
+    // deploy L1Unwrapper with CREATE2
+    const singletonFactory = await ethers.getContractAt('SingletonFactory', config.singletonFactory)
+
+    let customConfig = Object.assign({}, config)
+    customConfig.omniBridge = amb.address
+    customConfig.weth = l1Token.address
+    const contracts = await generate(customConfig)
+    await singletonFactory.deploy(contracts.unwrapperContract.bytecode, config.salt)
+    const l1Unwrapper = await ethers.getContractAt('L1Unwrapper', contracts.unwrapperContract.address)
 
     /** @type {TornadoPool} */
     const tornadoPoolImpl = await deploy(

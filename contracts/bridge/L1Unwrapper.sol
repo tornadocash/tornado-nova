@@ -79,9 +79,9 @@ contract L1Unwrapper is WETHOmnibridgeRouter {
     uint256 _value,
     bytes memory _data
   ) external override {
-    require(_token == address(WETH));
-    require(msg.sender == address(bridge));
-    require(_data.length == 52);
+    require(_token == address(WETH), "only WETH token");
+    require(msg.sender == address(bridge), "only from bridge address");
+    require(_data.length == 52, "incorrect data length");
 
     WETH.withdraw(_value);
 
