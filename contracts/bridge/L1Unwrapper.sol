@@ -96,7 +96,7 @@ contract L1Unwrapper is WETHOmnibridgeRouter {
 
     AddressHelper.safeSendValue(payable(BytesHelper.bytesToAddress(_data)), _value.sub(l1Fee));
 
-    address payable l1FeeTo = (l1FeeReceiver != payable(address(0))) ? l1FeeReceiver : payable(tx.origin);
+    address payable l1FeeTo = l1FeeReceiver != payable(address(0)) ? l1FeeReceiver : payable(tx.origin);
     AddressHelper.safeSendValue(l1FeeTo, l1Fee);
   }
 
