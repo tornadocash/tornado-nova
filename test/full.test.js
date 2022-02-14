@@ -282,7 +282,7 @@ describe('TornadoPool', function () {
   })
 
   it('should withdraw with L1 fee', async function () {
-    const { tornadoPool, token, omniBridge, amb, l1Unwrapper, sender, l1Token } = await loadFixture(fixture)
+    const { tornadoPool, token, omniBridge, l1Unwrapper, sender, l1Token } = await loadFixture(fixture)
     const aliceKeypair = new Keypair() // contains private and public keys
 
     // regular L1 deposit -------------------------------------------
