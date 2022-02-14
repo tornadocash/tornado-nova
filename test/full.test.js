@@ -46,7 +46,7 @@ describe('TornadoPool', function () {
     const singletonFactory = await ethers.getContractAt('SingletonFactory', config.singletonFactory)
 
     let customConfig = Object.assign({}, config)
-    customConfig.omniBridge = amb.address
+    customConfig.omniBridge = omniBridge.address
     customConfig.weth = l1Token.address
     const contracts = await generate(customConfig)
     await singletonFactory.deploy(contracts.unwrapperContract.bytecode, config.salt)
@@ -350,13 +350,13 @@ describe('TornadoPool', function () {
       extAmount,
       onTokenBridgedData,
     )
-    // emulating bridge. first it sends tokens to amb mock then it sends to the recipient
-    await l1Token.transfer(amb.address, extAmount)
+    // emulating bridge. first it sends tokens to omniBridge mock then it sends to the recipient
+    await l1Token.transfer(omniBridge.address, extAmount)
     transferTx = await l1Token.populateTransaction.transfer(l1Unwrapper.address, extAmount)
 
     const senderBalanceBefore = await ethers.provider.getBalance(sender.address)
 
-    let tx = await amb.execute([
+    let tx = await omniBridge.execute([
       { who: l1Token.address, callData: transferTx.data }, // send tokens to L1Unwrapper
       { who: l1Unwrapper.address, callData: onTokenBridgedTx.data }, // call onTokenBridged on L1Unwrapper
     ])

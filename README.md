@@ -28,11 +28,12 @@ Check config.js for actual values.
 With `salt` = `0x0000000000000000000000000000000000000000000000000000000047941987` addresses must be:
 
 1. `L1Unwrapper` - `0xfEADF5e7e453c664D903d1b1945c524c4328e1c5`
-2. `TornadoPool` - `0xEb314843E39A2D67c7bA31150fA243b30b70e97c`
+2. `TornadoPool` - `0x6a1c06C4Af066a35291117611fd0418411c0dbD0`
 
 Check addresses with current config:
 
 ```shell
+yarn compile
 node -e 'require("./src/0_generateAddresses").generateWithLog()'
 ```
 
@@ -42,7 +43,7 @@ Deploy L1Unwrapper:
 npx hardhat run scripts/deployL1Unwrapper.js --network mainnet
 ```
 
-Deploy TornadoPool:
+Deploy TornadoPool Upgrade:
 
 ```shell
 npx hardhat run scripts/deployTornadoUpgrade.js --network xdai
