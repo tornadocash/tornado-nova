@@ -21,6 +21,13 @@ import { BytesHelper } from "../libraries/Bytes.sol";
 contract L1Unwrapper is WETHOmnibridgeRouter {
   using SafeMath for uint256;
 
+  // If this address sets to not zero it receives L1_fee.
+  // It can be changed by the multisig.
+  // And should implement fee sharing logic:
+  // - some part to tx.origin - based on block base fee and can be subsidized
+  // - store surplus of ETH for future subsidizions
+  address payable public l1FeeReceiver;
+
   event PublicKey(address indexed owner, bytes key);
 
   struct Account {
@@ -88,6 +95,22 @@ contract L1Unwrapper is WETHOmnibridgeRouter {
     uint256 l1Fee = BytesHelper.sliceToUint(_data, 20);
 
     AddressHelper.safeSendValue(payable(BytesHelper.bytesToAddress(_data)), _value.sub(l1Fee));
-    AddressHelper.safeSendValue(payable(tx.origin), l1Fee);
+
+    address payable l1FeeTo;
+    if (l1FeeReceiver != payable(address(0))) {
+      l1FeeTo = l1FeeReceiver;
+    } else {
+      l1FeeTo = payable(tx.origin);
+    }
+    AddressHelper.safeSendValue(l1FeeTo, l1Fee);
+  }
+
+  /**
+   * @dev Sets l1FeeReceiver address.
+   * Only contract owner can call this method.
+   * @param _receiver address of new L1FeeReceiver, address(0) for native tx.origin receiver.
+   */
+  function setL1FeeReceiver(address payable _receiver) external onlyOwner {
+    l1FeeReceiver = _receiver;
   }
 }
