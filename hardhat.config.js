@@ -88,7 +88,7 @@ const config = {
           },
     },
     mainnet: {
-      url: process.env.ETH_RPC || '',
+      url: `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_KEY}`,
       accounts: process.env.PRIVATE_KEY
         ? [process.env.PRIVATE_KEY]
         : {
