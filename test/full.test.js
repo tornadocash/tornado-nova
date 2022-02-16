@@ -67,9 +67,7 @@ describe('TornadoPool', function () {
       multisig.address,
     )
 
-    const { data } = await tornadoPoolImpl.populateTransaction.initialize(
-      MAXIMUM_DEPOSIT_AMOUNT,
-    )
+    const { data } = await tornadoPoolImpl.populateTransaction.initialize(MAXIMUM_DEPOSIT_AMOUNT)
     const proxy = await deploy(
       'CrossChainUpgradeableProxy',
       tornadoPoolImpl.address,
