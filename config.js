@@ -19,7 +19,7 @@ module.exports = {
   hasher: '0x94c92f096437ab9958fc0a37f09348f30389ae79',
   gcWeth: '0x6a023ccd1ff6f2045c3309768ead9e68f978f6e1',
   gcOmniBridge: '0xf6a78083ca3e2a662d6dd1703c939c8ace2e268d',
-  l1Unwrapper: '0x095f741D37DfB3C798327377467eD40EE21b3B24',
+  l1Unwrapper: '0x3F615bA21Bc6Cc5D4a6D798c5950cc5c42937fbd',
   govAddress: '0x5efda50f22d34f262c29268506c5fa42cb56a1ce',
   l1ChainId: 1,
   gcMultisig: '0x1f727de610030a88863d7da45bdea4eb84655b52',

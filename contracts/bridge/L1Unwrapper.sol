@@ -15,7 +15,6 @@ pragma abicoder v2;
 
 import "omnibridge/contracts/helpers/WETHOmnibridgeRouter.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import { BytesHelper } from "../libraries/Bytes.sol";
 
 /// @dev Extension for original WETHOmnibridgeRouter that stores TornadoPool account registrations.
 contract L1Unwrapper is WETHOmnibridgeRouter {
@@ -88,16 +87,18 @@ contract L1Unwrapper is WETHOmnibridgeRouter {
   ) external override {
     require(_token == address(WETH), "only WETH token");
     require(msg.sender == address(bridge), "only from bridge address");
-    require(_data.length == 52, "incorrect data length");
+    require(_data.length == 64, "incorrect data length");
 
     WETH.withdraw(_value);
 
-    uint256 l1Fee = BytesHelper.sliceToUint(_data, 20);
+    (address payable receipient, uint256 l1Fee) = abi.decode(_data, (address, uint256));
 
-    AddressHelper.safeSendValue(payable(BytesHelper.bytesToAddress(_data)), _value.sub(l1Fee));
+    AddressHelper.safeSendValue(receipient, _value.sub(l1Fee));
 
-    address payable l1FeeTo = l1FeeReceiver != payable(address(0)) ? l1FeeReceiver : payable(tx.origin);
-    AddressHelper.safeSendValue(l1FeeTo, l1Fee);
+    if (l1Fee > 0) {
+      address payable l1FeeTo = l1FeeReceiver != payable(address(0)) ? l1FeeReceiver : payable(tx.origin);
+      AddressHelper.safeSendValue(l1FeeTo, l1Fee);
+    }
   }
 
   /**

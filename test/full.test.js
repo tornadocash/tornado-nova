@@ -14,7 +14,6 @@ const { generate } = require('../src/0_generateAddresses')
 
 const MERKLE_TREE_HEIGHT = 5
 const l1ChainId = 1
-const MINIMUM_WITHDRAWAL_AMOUNT = utils.parseEther(process.env.MINIMUM_WITHDRAWAL_AMOUNT || '0.05')
 const MAXIMUM_DEPOSIT_AMOUNT = utils.parseEther(process.env.MAXIMUM_DEPOSIT_AMOUNT || '1')
 
 describe('TornadoPool', function () {
@@ -69,7 +68,6 @@ describe('TornadoPool', function () {
     )
 
     const { data } = await tornadoPoolImpl.populateTransaction.initialize(
-      MINIMUM_WITHDRAWAL_AMOUNT,
       MAXIMUM_DEPOSIT_AMOUNT,
     )
     const proxy = await deploy(
@@ -105,13 +103,11 @@ describe('TornadoPool', function () {
 
     it('should configure', async () => {
       const { tornadoPool, multisig } = await loadFixture(fixture)
-      const newWithdrawalLimit = utils.parseEther('0.01337')
       const newDepositLimit = utils.parseEther('1337')
 
-      await tornadoPool.connect(multisig).configureLimits(newWithdrawalLimit, newDepositLimit)
+      await tornadoPool.connect(multisig).configureLimits(newDepositLimit)
 
       expect(await tornadoPool.maximumDepositAmount()).to.be.equal(newDepositLimit)
-      expect(await tornadoPool.minimalWithdrawalAmount()).to.be.equal(newWithdrawalLimit)
     })
   })
 
@@ -337,7 +333,7 @@ describe('TornadoPool', function () {
     const fromBlock = await ethers.provider.getBlock()
     const events = await omniBridge.queryFilter(filter, fromBlock.number)
     onTokenBridgedData = events[0].args.data
-    const hexL1Fee = '0x' + events[0].args.data.toString().slice(42)
+    const hexL1Fee = '0x' + events[0].args.data.toString().slice(66)
     expect(ethers.BigNumber.from(hexL1Fee)).to.be.equal(l1Fee)
 
     const recipientBalance = await token.balanceOf(recipient)
@@ -444,7 +440,7 @@ describe('TornadoPool', function () {
     const fromBlock = await ethers.provider.getBlock()
     const events = await omniBridge.queryFilter(filter, fromBlock.number)
     onTokenBridgedData = events[0].args.data
-    const hexL1Fee = '0x' + events[0].args.data.toString().slice(42)
+    const hexL1Fee = '0x' + events[0].args.data.toString().slice(66)
     expect(ethers.BigNumber.from(hexL1Fee)).to.be.equal(l1Fee)
 
     const recipientBalance = await token.balanceOf(recipient)

@@ -27,8 +27,8 @@ Check config.js for actual values.
 
 With `salt` = `0x0000000000000000000000000000000000000000000000000000000047941987` addresses must be:
 
-1. `L1Unwrapper` - `0x095f741D37DfB3C798327377467eD40EE21b3B24`
-2. `TornadoPool` - `0x85a3C2E4f0FcD4e881e0a3D1078496660C74bb35`
+1. `L1Unwrapper` - `0x3F615bA21Bc6Cc5D4a6D798c5950cc5c42937fbd`
+2. `TornadoPool` - `0x0CDD3705aF7979fBe80A64288Ebf8A9Fe1151cE1`
 
 Check addresses with current config:
 

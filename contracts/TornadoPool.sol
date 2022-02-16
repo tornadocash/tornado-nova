@@ -35,7 +35,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
   address public immutable multisig;
 
   uint256 public lastBalance;
-  uint256 public minimalWithdrawalAmount;
+  uint256 public __gap; // storage padding to prevent storage collision
   uint256 public maximumDepositAmount;
   mapping(bytes32 => bool) public nullifierHashes;
 
@@ -109,8 +109,8 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     multisig = _multisig;
   }
 
-  function initialize(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) external initializer {
-    _configureLimits(_minimalWithdrawalAmount, _maximumDepositAmount);
+  function initialize(uint256 _maximumDepositAmount) external initializer {
+    _configureLimits(_maximumDepositAmount);
     super._initialize();
   }
 
@@ -188,8 +188,8 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     }
   }
 
-  function configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) public onlyMultisig {
-    _configureLimits(_minimalWithdrawalAmount, _maximumDepositAmount);
+  function configureLimits(uint256 _maximumDepositAmount) public onlyMultisig {
+    _configureLimits(_maximumDepositAmount);
   }
 
   function calculatePublicAmount(int256 _extAmount, uint256 _fee) public pure returns (uint256) {
@@ -275,12 +275,11 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
         token.transferAndCall(
           omniBridge,
           uint256(-_extData.extAmount),
-          abi.encodePacked(l1Unwrapper, _extData.recipient, _extData.l1Fee)
+          abi.encodePacked(l1Unwrapper, abi.encode(_extData.recipient, _extData.l1Fee))
         );
       } else {
         token.transfer(_extData.recipient, uint256(-_extData.extAmount));
       }
-      require(uint256(-_extData.extAmount) >= minimalWithdrawalAmount, "amount is less than minimalWithdrawalAmount"); // prevents ddos attack to Bridge
     }
     if (_extData.fee > 0) {
       token.transfer(_extData.relayer, _extData.fee);
@@ -295,9 +294,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     }
   }
 
-  function _configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) internal {
-    require(_minimalWithdrawalAmount <= MIN_EXT_AMOUNT_LIMIT, "minimalWithdrawal over limit");
-    minimalWithdrawalAmount = _minimalWithdrawalAmount;
+  function _configureLimits(uint256 _maximumDepositAmount) internal {
     maximumDepositAmount = _maximumDepositAmount;
   }
 }
