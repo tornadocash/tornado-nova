@@ -736,11 +736,6 @@
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-3.4.2.tgz#2c2a1b0fa748235a1f495b6489349776365c51b3"
   integrity sha512-mDlBS17ymb2wpaLcrqRYdnBAmP1EwqhOXMvqWk2c5Q1N1pm5TkiCtXM9Xzznh4bYsQBq0aIWEkFFE2+iLSN1Tw==
 
-"@openzeppelin/contracts@3.2.2-solc-0.7":
-  version "3.2.2-solc-0.7"
-  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-3.2.2-solc-0.7.tgz#8ab169da64438d59f47ca285f1a10efe2f9ba19e"
-  integrity sha512-vFV53E4pvfsAEjzL9Um2VX9MEuXyq7Hyd9JjnP77AGsrEPxkJaYS06zZIVyhAt3rXTM6QGdW0C282Zv7fM93AA==
-
 "@openzeppelin@git+https://github.com/tornadocash/openzeppelin-contracts.git#6e46aa6946a7f215e7604169ddf46e1aebea850f":
   version "3.4.1-solc-0.7-2"
   resolved "git+https://github.com/tornadocash/openzeppelin-contracts.git#6e46aa6946a7f215e7604169ddf46e1aebea850f"
@@ -6918,11 +6913,10 @@ oboe@2.1.5:
   dependencies:
     http-https "^1.0.0"
 
-"omnibridge@git+https://github.com/peppersec/omnibridge.git#aa3a970c29752a4da5f3fc7ccf0733783c1acf0b":
+"omnibridge@git+https://github.com/peppersec/omnibridge.git#30081f7a735eb03c9d6821a9617cc28efe71a682":
   version "1.1.0"
-  resolved "git+https://github.com/peppersec/omnibridge.git#aa3a970c29752a4da5f3fc7ccf0733783c1acf0b"
+  resolved "git+https://github.com/peppersec/omnibridge.git#30081f7a735eb03c9d6821a9617cc28efe71a682"
   dependencies:
-    "@openzeppelin/contracts" "3.2.2-solc-0.7"
     axios "^0.21.0"
     bignumber.js "^9.0.1"
     dotenv "^8.2.0"

@@ -19,6 +19,8 @@ jobs:
       - run: yarn lint
       - run: yarn build
       - run: yarn test
+        env:
+          ALCHEMY_KEY: ${{ secrets.ALCHEMY_KEY }}
       - name: Telegram Failure Notification
         uses: appleboy/telegram-action@0.0.7
         if: failure()

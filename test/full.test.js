@@ -9,10 +9,11 @@ const { transaction, registerAndTransact, prepareTransaction, buildMerkleTree } 
 const { toFixedHex, poseidonHash } = require('../src/utils')
 const { Keypair } = require('../src/keypair')
 const { encodeDataForBridge } = require('./utils')
+const config = require('../config')
+const { generate } = require('../src/0_generateAddresses')
 
 const MERKLE_TREE_HEIGHT = 5
 const l1ChainId = 1
-const MINIMUM_WITHDRAWAL_AMOUNT = utils.parseEther(process.env.MINIMUM_WITHDRAWAL_AMOUNT || '0.05')
 const MAXIMUM_DEPOSIT_AMOUNT = utils.parseEther(process.env.MAXIMUM_DEPOSIT_AMOUNT || '1')
 
 describe('TornadoPool', function () {
@@ -26,7 +27,7 @@ describe('TornadoPool', function () {
 
   async function fixture() {
     require('../scripts/compileHasher')
-    const [sender, gov, l1Unwrapper, multisig] = await ethers.getSigners()
+    const [sender, gov, multisig] = await ethers.getSigners()
     const verifier2 = await deploy('Verifier2')
     const verifier16 = await deploy('Verifier16')
     const hasher = await deploy('Hasher')
@@ -34,8 +35,22 @@ describe('TornadoPool', function () {
     const token = await deploy('PermittableToken', 'Wrapped ETH', 'WETH', 18, l1ChainId)
     await token.mint(sender.address, utils.parseEther('10000'))
 
+    const l1Token = await deploy('WETH', 'Wrapped ETH', 'WETH')
+    await l1Token.deposit({ value: utils.parseEther('3') })
+
     const amb = await deploy('MockAMB', gov.address, l1ChainId)
     const omniBridge = await deploy('MockOmniBridge', amb.address)
+
+    // deploy L1Unwrapper with CREATE2
+    const singletonFactory = await ethers.getContractAt('SingletonFactory', config.singletonFactory)
+
+    let customConfig = Object.assign({}, config)
+    customConfig.omniBridge = omniBridge.address
+    customConfig.weth = l1Token.address
+    customConfig.multisig = multisig.address
+    const contracts = await generate(customConfig)
+    await singletonFactory.deploy(contracts.unwrapperContract.bytecode, config.salt)
+    const l1Unwrapper = await ethers.getContractAt('L1Unwrapper', contracts.unwrapperContract.address)
 
     /** @type {TornadoPool} */
     const tornadoPoolImpl = await deploy(
@@ -52,10 +67,7 @@ describe('TornadoPool', function () {
       multisig.address,
     )
 
-    const { data } = await tornadoPoolImpl.populateTransaction.initialize(
-      MINIMUM_WITHDRAWAL_AMOUNT,
-      MAXIMUM_DEPOSIT_AMOUNT,
-    )
+    const { data } = await tornadoPoolImpl.populateTransaction.initialize(MAXIMUM_DEPOSIT_AMOUNT)
     const proxy = await deploy(
       'CrossChainUpgradeableProxy',
       tornadoPoolImpl.address,
@@ -69,7 +81,7 @@ describe('TornadoPool', function () {
 
     await token.approve(tornadoPool.address, utils.parseEther('10000'))
 
-    return { tornadoPool, token, proxy, omniBridge, amb, gov, multisig }
+    return { tornadoPool, token, proxy, omniBridge, amb, gov, multisig, l1Unwrapper, sender, l1Token }
   }
 
   describe('Upgradeability tests', () => {
@@ -88,19 +100,12 @@ describe('TornadoPool', function () {
     })
 
     it('should configure', async () => {
-      const { tornadoPool, amb } = await loadFixture(fixture)
-      const newWithdrawalLimit = utils.parseEther('0.01337')
+      const { tornadoPool, multisig } = await loadFixture(fixture)
       const newDepositLimit = utils.parseEther('1337')
 
-      const { data } = await tornadoPool.populateTransaction.configureLimits(
-        newWithdrawalLimit,
-        newDepositLimit,
-      )
-
-      await amb.execute([{ who: tornadoPool.address, callData: data }])
+      await tornadoPool.connect(multisig).configureLimits(newDepositLimit)
 
       expect(await tornadoPool.maximumDepositAmount()).to.be.equal(newDepositLimit)
-      expect(await tornadoPool.minimalWithdrawalAmount()).to.be.equal(newWithdrawalLimit)
     })
   })
 
@@ -269,6 +274,201 @@ describe('TornadoPool', function () {
     expect(recipientBalance).to.be.equal(0)
     const omniBridgeBalance = await token.balanceOf(omniBridge.address)
     expect(omniBridgeBalance).to.be.equal(aliceWithdrawAmount)
+  })
+
+  it('should withdraw with L1 fee', async function () {
+    const { tornadoPool, token, omniBridge, l1Unwrapper, sender, l1Token } = await loadFixture(fixture)
+    const aliceKeypair = new Keypair() // contains private and public keys
+
+    // regular L1 deposit -------------------------------------------
+    const aliceDepositAmount = utils.parseEther('0.07')
+    const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount, keypair: aliceKeypair })
+    const { args, extData } = await prepareTransaction({
+      tornadoPool,
+      outputs: [aliceDepositUtxo],
+    })
+
+    let onTokenBridgedData = encodeDataForBridge({
+      proof: args,
+      extData,
+    })
+
+    let onTokenBridgedTx = await tornadoPool.populateTransaction.onTokenBridged(
+      token.address,
+      aliceDepositUtxo.amount,
+      onTokenBridgedData,
+    )
+    // emulating bridge. first it sends tokens to omnibridge mock then it sends to the pool
+    await token.transfer(omniBridge.address, aliceDepositAmount)
+    let transferTx = await token.populateTransaction.transfer(tornadoPool.address, aliceDepositAmount)
+
+    await omniBridge.execute([
+      { who: token.address, callData: transferTx.data }, // send tokens to pool
+      { who: tornadoPool.address, callData: onTokenBridgedTx.data }, // call onTokenBridgedTx
+    ])
+
+    // withdrawal with L1 fee ---------------------------------------
+    // withdraws a part of his funds from the shielded pool
+    const aliceWithdrawAmount = utils.parseEther('0.06')
+    const l1Fee = utils.parseEther('0.01')
+    // sum of desired withdraw amount and L1 fee are stored in extAmount
+    const extAmount = aliceWithdrawAmount.add(l1Fee)
+    const recipient = '0xDeaD00000000000000000000000000000000BEEf'
+    const aliceChangeUtxo = new Utxo({
+      amount: aliceDepositAmount.sub(extAmount),
+      keypair: aliceKeypair,
+    })
+    await transaction({
+      tornadoPool,
+      inputs: [aliceDepositUtxo],
+      outputs: [aliceChangeUtxo],
+      recipient: recipient,
+      isL1Withdrawal: true,
+      l1Fee: l1Fee,
+    })
+
+    const filter = omniBridge.filters.OnTokenTransfer()
+    const fromBlock = await ethers.provider.getBlock()
+    const events = await omniBridge.queryFilter(filter, fromBlock.number)
+    onTokenBridgedData = events[0].args.data
+    const hexL1Fee = '0x' + events[0].args.data.toString().slice(66)
+    expect(ethers.BigNumber.from(hexL1Fee)).to.be.equal(l1Fee)
+
+    const recipientBalance = await token.balanceOf(recipient)
+    expect(recipientBalance).to.be.equal(0)
+    const omniBridgeBalance = await token.balanceOf(omniBridge.address)
+    expect(omniBridgeBalance).to.be.equal(extAmount)
+
+    // L1 transactions:
+    onTokenBridgedTx = await l1Unwrapper.populateTransaction.onTokenBridged(
+      l1Token.address,
+      extAmount,
+      onTokenBridgedData,
+    )
+    // emulating bridge. first it sends tokens to omniBridge mock then it sends to the recipient
+    await l1Token.transfer(omniBridge.address, extAmount)
+    transferTx = await l1Token.populateTransaction.transfer(l1Unwrapper.address, extAmount)
+
+    const senderBalanceBefore = await ethers.provider.getBalance(sender.address)
+
+    let tx = await omniBridge.execute([
+      { who: l1Token.address, callData: transferTx.data }, // send tokens to L1Unwrapper
+      { who: l1Unwrapper.address, callData: onTokenBridgedTx.data }, // call onTokenBridged on L1Unwrapper
+    ])
+
+    let receipt = await tx.wait()
+    let txFee = receipt.cumulativeGasUsed.mul(receipt.effectiveGasPrice)
+    const senderBalanceAfter = await ethers.provider.getBalance(sender.address)
+    expect(senderBalanceAfter).to.be.equal(senderBalanceBefore.sub(txFee).add(l1Fee))
+    expect(await ethers.provider.getBalance(recipient)).to.be.equal(aliceWithdrawAmount)
+  })
+
+  it('should set L1FeeReceiver on L1Unwrapper contract', async function () {
+    const { tornadoPool, token, omniBridge, l1Unwrapper, sender, l1Token, multisig } = await loadFixture(
+      fixture,
+    )
+
+    // check init l1FeeReceiver
+    expect(await l1Unwrapper.l1FeeReceiver()).to.be.equal(ethers.constants.AddressZero)
+
+    // should not set from not multisig
+
+    await expect(l1Unwrapper.connect(sender).setL1FeeReceiver(multisig.address)).to.be.reverted
+
+    expect(await l1Unwrapper.l1FeeReceiver()).to.be.equal(ethers.constants.AddressZero)
+
+    // should set from multisig
+    await l1Unwrapper.connect(multisig).setL1FeeReceiver(multisig.address)
+
+    expect(await l1Unwrapper.l1FeeReceiver()).to.be.equal(multisig.address)
+
+    // ------------------------------------------------------------------------
+    // check withdraw with L1 fee ---------------------------------------------
+
+    const aliceKeypair = new Keypair() // contains private and public keys
+
+    // regular L1 deposit -------------------------------------------
+    const aliceDepositAmount = utils.parseEther('0.07')
+    const aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount, keypair: aliceKeypair })
+    const { args, extData } = await prepareTransaction({
+      tornadoPool,
+      outputs: [aliceDepositUtxo],
+    })
+
+    let onTokenBridgedData = encodeDataForBridge({
+      proof: args,
+      extData,
+    })
+
+    let onTokenBridgedTx = await tornadoPool.populateTransaction.onTokenBridged(
+      token.address,
+      aliceDepositUtxo.amount,
+      onTokenBridgedData,
+    )
+    // emulating bridge. first it sends tokens to omnibridge mock then it sends to the pool
+    await token.transfer(omniBridge.address, aliceDepositAmount)
+    let transferTx = await token.populateTransaction.transfer(tornadoPool.address, aliceDepositAmount)
+
+    await omniBridge.execute([
+      { who: token.address, callData: transferTx.data }, // send tokens to pool
+      { who: tornadoPool.address, callData: onTokenBridgedTx.data }, // call onTokenBridgedTx
+    ])
+
+    // withdrawal with L1 fee ---------------------------------------
+    // withdraws a part of his funds from the shielded pool
+    const aliceWithdrawAmount = utils.parseEther('0.06')
+    const l1Fee = utils.parseEther('0.01')
+    // sum of desired withdraw amount and L1 fee are stored in extAmount
+    const extAmount = aliceWithdrawAmount.add(l1Fee)
+    const recipient = '0xDeaD00000000000000000000000000000000BEEf'
+    const aliceChangeUtxo = new Utxo({
+      amount: aliceDepositAmount.sub(extAmount),
+      keypair: aliceKeypair,
+    })
+    await transaction({
+      tornadoPool,
+      inputs: [aliceDepositUtxo],
+      outputs: [aliceChangeUtxo],
+      recipient: recipient,
+      isL1Withdrawal: true,
+      l1Fee: l1Fee,
+    })
+
+    const filter = omniBridge.filters.OnTokenTransfer()
+    const fromBlock = await ethers.provider.getBlock()
+    const events = await omniBridge.queryFilter(filter, fromBlock.number)
+    onTokenBridgedData = events[0].args.data
+    const hexL1Fee = '0x' + events[0].args.data.toString().slice(66)
+    expect(ethers.BigNumber.from(hexL1Fee)).to.be.equal(l1Fee)
+
+    const recipientBalance = await token.balanceOf(recipient)
+    expect(recipientBalance).to.be.equal(0)
+    const omniBridgeBalance = await token.balanceOf(omniBridge.address)
+    expect(omniBridgeBalance).to.be.equal(extAmount)
+
+    // L1 transactions:
+    onTokenBridgedTx = await l1Unwrapper.populateTransaction.onTokenBridged(
+      l1Token.address,
+      extAmount,
+      onTokenBridgedData,
+    )
+    // emulating bridge. first it sends tokens to omniBridge mock then it sends to the recipient
+    await l1Token.transfer(omniBridge.address, extAmount)
+    transferTx = await l1Token.populateTransaction.transfer(l1Unwrapper.address, extAmount)
+
+    const senderBalanceBefore = await ethers.provider.getBalance(sender.address)
+    const multisigBalanceBefore = await ethers.provider.getBalance(multisig.address)
+
+    let tx = await omniBridge.execute([
+      { who: l1Token.address, callData: transferTx.data }, // send tokens to L1Unwrapper
+      { who: l1Unwrapper.address, callData: onTokenBridgedTx.data }, // call onTokenBridged on L1Unwrapper
+    ])
+
+    let receipt = await tx.wait()
+    let txFee = receipt.cumulativeGasUsed.mul(receipt.effectiveGasPrice)
+    expect(await ethers.provider.getBalance(sender.address)).to.be.equal(senderBalanceBefore.sub(txFee))
+    expect(await ethers.provider.getBalance(multisig.address)).to.be.equal(multisigBalanceBefore.add(l1Fee))
+    expect(await ethers.provider.getBalance(recipient)).to.be.equal(aliceWithdrawAmount)
   })
 
   it('should transfer funds to multisig in case of L1 deposit fail', async function () {

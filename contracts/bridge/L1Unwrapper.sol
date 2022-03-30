@@ -14,9 +14,19 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "omnibridge/contracts/helpers/WETHOmnibridgeRouter.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 /// @dev Extension for original WETHOmnibridgeRouter that stores TornadoPool account registrations.
-contract L1Helper is WETHOmnibridgeRouter {
+contract L1Unwrapper is WETHOmnibridgeRouter {
+  using SafeMath for uint256;
+
+  // If this address sets to not zero it receives L1_fee.
+  // It can be changed by the multisig.
+  // And should implement fee sharing logic:
+  // - some part to tx.origin - based on block base fee and can be subsidized
+  // - store surplus of ETH for future subsidizions
+  address payable public l1FeeReceiver;
+
   event PublicKey(address indexed owner, bytes key);
 
   struct Account {
@@ -60,5 +70,43 @@ contract L1Helper is WETHOmnibridgeRouter {
 
   function _register(Account memory _account) internal {
     emit PublicKey(_account.owner, _account.publicKey);
+  }
+
+  /**
+   * @dev Bridged callback function used for unwrapping received tokens.
+   * Can only be called by the associated Omnibridge contract.
+   * @param _token bridged token contract address, should be WETH.
+   * @param _value amount of bridged/received tokens.
+   * @param _data extra data passed alongside with relayTokensAndCall on the other side of the bridge.
+   * Should contain coins receiver address and L1 executer fee amount.
+   */
+  function onTokenBridged(
+    address _token,
+    uint256 _value,
+    bytes memory _data
+  ) external override {
+    require(_token == address(WETH), "only WETH token");
+    require(msg.sender == address(bridge), "only from bridge address");
+    require(_data.length == 64, "incorrect data length");
+
+    WETH.withdraw(_value);
+
+    (address payable receipient, uint256 l1Fee) = abi.decode(_data, (address, uint256));
+
+    AddressHelper.safeSendValue(receipient, _value.sub(l1Fee));
+
+    if (l1Fee > 0) {
+      address payable l1FeeTo = l1FeeReceiver != payable(address(0)) ? l1FeeReceiver : payable(tx.origin);
+      AddressHelper.safeSendValue(l1FeeTo, l1Fee);
+    }
+  }
+
+  /**
+   * @dev Sets l1FeeReceiver address.
+   * Only contract owner can call this method.
+   * @param _receiver address of new L1FeeReceiver, address(0) for native tx.origin receiver.
+   */
+  function setL1FeeReceiver(address payable _receiver) external onlyOwner {
+    l1FeeReceiver = _receiver;
   }
 }

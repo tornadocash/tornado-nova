@@ -20,3 +20,31 @@ yarn download
 yarn build
 yarn test
 ```
+
+## Deploy
+
+Check config.js for actual values.
+
+With `salt` = `0x0000000000000000000000000000000000000000000000000000000047941987` addresses must be:
+
+1. `L1Unwrapper` - `0x3F615bA21Bc6Cc5D4a6D798c5950cc5c42937fbd`
+2. `TornadoPool` - `0x0CDD3705aF7979fBe80A64288Ebf8A9Fe1151cE1`
+
+Check addresses with current config:
+
+```shell
+yarn compile
+node -e 'require("./src/0_generateAddresses").generateWithLog()'
+```
+
+Deploy L1Unwrapper:
+
+```shell
+npx hardhat run scripts/deployL1Unwrapper.js --network mainnet
+```
+
+Deploy TornadoPool Upgrade:
+
+```shell
+npx hardhat run scripts/deployTornadoUpgrade.js --network xdai
+```

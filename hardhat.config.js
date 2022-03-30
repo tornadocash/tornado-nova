@@ -22,6 +22,15 @@ const config = {
         },
       },
       {
+        version: '0.6.2',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
+      },
+      {
         version: '0.7.5',
         settings: {
           optimizer: {
@@ -42,6 +51,25 @@ const config = {
     ],
   },
   networks: {
+    hardhat: {
+      forking: {
+        url: `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_KEY}`,
+        blockNumber: 13685625,
+      },
+      chainId: 1,
+      initialBaseFeePerGas: 5,
+      loggingEnabled: false,
+      allowUnlimitedContractSize: false,
+      blockGasLimit: 50000000,
+    },
+    rinkeby: {
+      url: `https://rinkeby.infura.io/v3/${process.env.INFURA_API_KEY}`,
+      accounts: process.env.PRIVATE_KEY
+        ? [process.env.PRIVATE_KEY]
+        : {
+            mnemonic: 'test test test test test test test test test test test junk',
+          },
+    },
     xdai: {
       url: process.env.ETH_RPC || 'https://rpc.xdaichain.com/',
       accounts: process.env.PRIVATE_KEY
@@ -60,7 +88,7 @@ const config = {
           },
     },
     mainnet: {
-      url: process.env.ETH_RPC || '',
+      url: `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_KEY}`,
       accounts: process.env.PRIVATE_KEY
         ? [process.env.PRIVATE_KEY]
         : {

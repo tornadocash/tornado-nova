@@ -4,3 +4,4 @@ build
 cache
 artifacts
 src/types
+.vscode

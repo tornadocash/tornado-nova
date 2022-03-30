@@ -7,7 +7,8 @@
         "printWidth": 110
       }
     ],
-    "quotes": ["error", "double"]
+    "quotes": ["error", "double"],
+    "compiler-version": ["error", "^0.7.0"]
   },
   "plugins": ["prettier"]
 }

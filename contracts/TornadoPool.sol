@@ -25,6 +25,7 @@ import "./MerkleTreeWithHistory.sol";
 contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, CrossChainGuard {
   int256 public constant MAX_EXT_AMOUNT = 2**248;
   uint256 public constant MAX_FEE = 2**248;
+  uint256 public constant MIN_EXT_AMOUNT_LIMIT = 0.5 ether;
 
   IVerifier public immutable verifier2;
   IVerifier public immutable verifier16;
@@ -34,7 +35,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
   address public immutable multisig;
 
   uint256 public lastBalance;
-  uint256 public minimalWithdrawalAmount;
+  uint256 public __gap; // storage padding to prevent storage collision
   uint256 public maximumDepositAmount;
   mapping(bytes32 => bool) public nullifierHashes;
 
@@ -46,6 +47,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     bytes encryptedOutput1;
     bytes encryptedOutput2;
     bool isL1Withdrawal;
+    uint256 l1Fee;
   }
 
   struct Proof {
@@ -65,11 +67,6 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
   event NewCommitment(bytes32 commitment, uint256 index, bytes encryptedOutput);
   event NewNullifier(bytes32 nullifier);
   event PublicKey(address indexed owner, bytes key);
-
-  modifier onlyGovernance() {
-    require(isCalledByOwner(), "only governance");
-    _;
-  }
 
   modifier onlyMultisig() {
     require(msg.sender == multisig, "only governance");
@@ -112,8 +109,8 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     multisig = _multisig;
   }
 
-  function initialize(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) external initializer {
-    _configureLimits(_minimalWithdrawalAmount, _maximumDepositAmount);
+  function initialize(uint256 _maximumDepositAmount) external initializer {
+    _configureLimits(_maximumDepositAmount);
     super._initialize();
   }
 
@@ -191,8 +188,8 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     }
   }
 
-  function configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) public onlyGovernance {
-    _configureLimits(_minimalWithdrawalAmount, _maximumDepositAmount);
+  function configureLimits(uint256 _maximumDepositAmount) public onlyMultisig {
+    _configureLimits(_maximumDepositAmount);
   }
 
   function calculatePublicAmount(int256 _extAmount, uint256 _fee) public pure returns (uint256) {
@@ -275,11 +272,14 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     if (_extData.extAmount < 0) {
       require(_extData.recipient != address(0), "Can't withdraw to zero address");
       if (_extData.isL1Withdrawal) {
-        token.transferAndCall(omniBridge, uint256(-_extData.extAmount), abi.encodePacked(l1Unwrapper, _extData.recipient));
+        token.transferAndCall(
+          omniBridge,
+          uint256(-_extData.extAmount),
+          abi.encodePacked(l1Unwrapper, abi.encode(_extData.recipient, _extData.l1Fee))
+        );
       } else {
         token.transfer(_extData.recipient, uint256(-_extData.extAmount));
       }
-      require(uint256(-_extData.extAmount) >= minimalWithdrawalAmount, "amount is less than minimalWithdrawalAmount"); // prevents ddos attack to Bridge
     }
     if (_extData.fee > 0) {
       token.transfer(_extData.relayer, _extData.fee);
@@ -294,8 +294,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     }
   }
 
-  function _configureLimits(uint256 _minimalWithdrawalAmount, uint256 _maximumDepositAmount) internal {
-    minimalWithdrawalAmount = _minimalWithdrawalAmount;
+  function _configureLimits(uint256 _maximumDepositAmount) internal {
     maximumDepositAmount = _maximumDepositAmount;
   }
 }
