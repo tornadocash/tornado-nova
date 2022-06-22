@@ -26,6 +26,7 @@ async function getProof({
   relayer,
   isL1Withdrawal,
   l1Fee,
+  withdrawalBytecode,
 }) {
   inputs = shuffle(inputs)
   outputs = shuffle(outputs)
@@ -56,6 +57,7 @@ async function getProof({
     encryptedOutput2: outputs[1].encrypt(),
     isL1Withdrawal,
     l1Fee,
+    withdrawalBytecode,
   }
 
   const extDataHash = getExtDataHash(extData)
@@ -106,6 +108,7 @@ async function prepareTransaction({
   relayer = 0,
   isL1Withdrawal = false,
   l1Fee = 0,
+  withdrawalBytecode = [],
 }) {
   if (inputs.length > 16 || outputs.length > 2) {
     throw new Error('Incorrect inputs/outputs count')
@@ -131,6 +134,7 @@ async function prepareTransaction({
     relayer,
     isL1Withdrawal,
     l1Fee,
+    withdrawalBytecode,
   })
 
   return {

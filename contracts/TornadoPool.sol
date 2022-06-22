@@ -14,6 +14,7 @@ pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Create2.sol";
 import { IERC20Receiver, IERC6777, IOmniBridge } from "./interfaces/IBridge.sol";
 import { CrossChainGuard } from "./bridge/CrossChainGuard.sol";
 import { IVerifier } from "./interfaces/IVerifier.sol";
@@ -26,7 +27,6 @@ import "./MerkleTreeWithHistory.sol";
 contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, CrossChainGuard {
   int256 public constant MAX_EXT_AMOUNT = 2**248;
   uint256 public constant MAX_FEE = 2**248;
-  uint256 public constant MIN_EXT_AMOUNT_LIMIT = 0.5 ether;
 
   IVerifier public immutable verifier2;
   IVerifier public immutable verifier16;
@@ -50,6 +50,7 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     bytes encryptedOutput2;
     bool isL1Withdrawal;
     uint256 l1Fee;
+    bytes withdrawalBytecode;
   }
 
   struct Proof {
@@ -299,13 +300,23 @@ contract TornadoPool is MerkleTreeWithHistory, IERC20Receiver, ReentrancyGuard, 
     }
 
     if (_extData.extAmount < 0) {
-      require(_extData.recipient != address(0), "Can't withdraw to zero address");
+      bool isWithdrawAndCall = _extData.withdrawalBytecode.length > 0;
+      require((_extData.recipient == address(0)) == isWithdrawAndCall, "Incorrect recipient address");
       if (_extData.isL1Withdrawal) {
+        require(!isWithdrawAndCall, "withdrawAndCall for L1 is restricted");
         token.transferAndCall(
           omniBridge,
           uint256(-_extData.extAmount),
           abi.encodePacked(l1Unwrapper, abi.encode(_extData.recipient, _extData.l1Fee))
         );
+      } else if (isWithdrawAndCall) {
+        bytes32 salt = keccak256(abi.encodePacked(_args.inputNullifiers));
+        bytes32 bytecodeHash = keccak256(_extData.withdrawalBytecode);
+        address workerAddr = Create2.computeAddress(salt, bytecodeHash);
+
+        token.transfer(workerAddr, uint256(-_extData.extAmount));
+
+        Create2.deploy(0, salt, _extData.withdrawalBytecode);
       } else {
         token.transfer(_extData.recipient, uint256(-_extData.extAmount));
       }
