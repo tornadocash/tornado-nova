@@ -99,6 +99,7 @@ template Transaction(levels, nIns, nOuts, zeroLeaf) {
         outCommitmentHasher[tx].out === outputCommitment[tx];
 
         // Check that amount fits into 248 bits to prevent overflow
+        // make sure that that limit the same as in TornadoPool.sol:publicDeposit()
         outAmountCheck[tx] = Num2Bits(248);
         outAmountCheck[tx].in <== outAmount[tx];
 
