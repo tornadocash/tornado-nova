@@ -6,3 +6,5 @@ cache
 cache-ovm
 contracts/Verifier*.sol
 src/types
+coverage
+coverage.json

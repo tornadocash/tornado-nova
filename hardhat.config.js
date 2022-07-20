@@ -3,6 +3,7 @@ require('@typechain/hardhat')
 require('@nomiclabs/hardhat-ethers')
 require('@nomiclabs/hardhat-waffle')
 require('@nomiclabs/hardhat-etherscan')
+require('solidity-coverage')
 require('dotenv').config()
 
 task('hasher', 'Compile Poseidon hasher', () => {
