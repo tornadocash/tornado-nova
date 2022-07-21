@@ -125,11 +125,10 @@ describe('TornadoPool', function () {
 
   it('constants check', async () => {
     const { tornadoPool } = await loadFixture(fixture)
-    const maxFee = await tornadoPool.MAX_FEE()
-    const maxExtAmount = await tornadoPool.MAX_EXT_AMOUNT()
+    const maxFieldUint = await tornadoPool.MAX_FIELD_UINT()
     const fieldSize = await tornadoPool.FIELD_SIZE()
 
-    expect(maxExtAmount.add(maxFee)).to.be.lt(fieldSize)
+    expect(maxFieldUint.mul(2)).to.be.lt(fieldSize)
   })
 
   it('should register and deposit', async function () {
@@ -616,7 +615,7 @@ describe('TornadoPool', function () {
       ['string', 'uint256', 'bytes32'],
       ['abi', publicDepositAmount, alicePubkey],
     )
-    expect(events[0].args.encryptedOutput).to.be.equal(packedOutput)
+    expect(events[2].args.encryptedOutput).to.be.equal(packedOutput)
 
     aliceDepositUtxo = new Utxo({
       amount: publicDepositAmount,
