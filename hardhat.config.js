@@ -64,7 +64,7 @@ const config = {
       blockGasLimit: 50000000,
     },
     rinkeby: {
-      url: `https://rinkeby.infura.io/v3/${process.env.INFURA_API_KEY}`,
+      url: `https://rinkeby.infura.io/v3/${process.env.INFURA_KEY}`,
       accounts: process.env.PRIVATE_KEY
         ? [process.env.PRIVATE_KEY]
         : {
@@ -72,7 +72,7 @@ const config = {
           },
     },
     xdai: {
-      url: process.env.ETH_RPC || 'https://rpc.xdaichain.com/',
+      url: process.env.XDAI_RPC || 'https://rpc.xdaichain.com/',
       accounts: process.env.PRIVATE_KEY
         ? [process.env.PRIVATE_KEY]
         : {
@@ -81,7 +81,7 @@ const config = {
       gasPrice: 25000000000,
     },
     bsc: {
-      url: process.env.ETH_RPC || 'https://bsc-dataseed.binance.org/',
+      url: process.env.BSC_RPC || 'https://bsc-dataseed.binance.org/',
       accounts: process.env.PRIVATE_KEY
         ? [process.env.PRIVATE_KEY]
         : {
@@ -98,7 +98,10 @@ const config = {
     },
   },
   etherscan: {
-    apiKey: process.env.ETHERSCAN_KEY,
+    apiKey: {
+      mainnet: process.env.ETHERSCAN_KEY,
+      bsc: process.env.BSCSCAN_KEY,
+    },
   },
   mocha: {
     timeout: 600000000,

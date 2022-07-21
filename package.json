@@ -52,7 +52,7 @@
     "typechain": "^5.1.2"
   },
   "devDependencies": {
-    "@nomiclabs/hardhat-etherscan": "^2.1.8",
+    "@nomiclabs/hardhat-etherscan": "3.1.0",
     "babel-eslint": "^10.1.0",
     "eslint": "^7.28.0",
     "eslint-config-prettier": "^8.3.0",
