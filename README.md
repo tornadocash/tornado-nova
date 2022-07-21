@@ -19,6 +19,7 @@ yarn
 yarn download
 yarn build
 yarn test
+yarn coverage
 ```
 
 ## Deploy

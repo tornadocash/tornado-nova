@@ -3,12 +3,14 @@ const { ethers, waffle } = hre
 const { loadFixture } = waffle
 const { expect } = require('chai')
 const { utils } = ethers
+const { BigNumber } = require('@ethersproject/bignumber')
 
 const Utxo = require('../src/utxo')
 const { transaction, registerAndTransact, prepareTransaction, buildMerkleTree } = require('../src/index')
 const { toFixedHex, poseidonHash } = require('../src/utils')
 const { Keypair } = require('../src/keypair')
 const { encodeDataForBridge } = require('./utils')
+const { getWithdrawalWorkerBytecode } = require('../src/withdrawWorker')
 const config = require('../config')
 const { generate } = require('../src/0_generateAddresses')
 
@@ -27,10 +29,12 @@ describe('TornadoPool', function () {
 
   async function fixture() {
     require('../scripts/compileHasher')
+    require('../scripts/compileHasher3')
     const [sender, gov, multisig] = await ethers.getSigners()
     const verifier2 = await deploy('Verifier2')
     const verifier16 = await deploy('Verifier16')
     const hasher = await deploy('Hasher')
+    const hasher3 = await deploy('Hasher3')
 
     const token = await deploy('PermittableToken', 'Wrapped ETH', 'WETH', 18, l1ChainId)
     await token.mint(sender.address, utils.parseEther('10000'))
@@ -59,6 +63,7 @@ describe('TornadoPool', function () {
       verifier16.address,
       MERKLE_TREE_HEIGHT,
       hasher.address,
+      hasher3.address,
       token.address,
       omniBridge.address,
       l1Unwrapper.address,
@@ -120,11 +125,10 @@ describe('TornadoPool', function () {
 
   it('constants check', async () => {
     const { tornadoPool } = await loadFixture(fixture)
-    const maxFee = await tornadoPool.MAX_FEE()
-    const maxExtAmount = await tornadoPool.MAX_EXT_AMOUNT()
+    const maxFieldUint = await tornadoPool.MAX_FIELD_UINT()
     const fieldSize = await tornadoPool.FIELD_SIZE()
 
-    expect(maxExtAmount.add(maxFee)).to.be.lt(fieldSize)
+    expect(maxFieldUint.mul(2)).to.be.lt(fieldSize)
   })
 
   it('should register and deposit', async function () {
@@ -173,6 +177,65 @@ describe('TornadoPool', function () {
     const [registerEvent] = registerEvents.sort((a, b) => a.blockNumber - b.blockNumber).slice(-1)
 
     expect(registerEvent.args.key).to.be.equal(aliceDepositUtxo.keypair.address())
+  })
+
+  it('should public deposit', async function () {
+    let { tornadoPool, token } = await loadFixture(fixture)
+    const sender = (await ethers.getSigners())[0]
+    tornadoPool = tornadoPool.connect(sender)
+
+    // Alice deposits into tornado pool
+    const aliceDepositAmount = utils.parseEther('0.1')
+    const aliceKeypair = new Keypair()
+    const alicePubkey = aliceKeypair.address().slice(0, 66)
+
+    await expect(() => tornadoPool.publicDeposit(alicePubkey, aliceDepositAmount)).to.changeTokenBalances(
+      token,
+      [sender, tornadoPool],
+      [BigNumber.from(0).sub(aliceDepositAmount), aliceDepositAmount],
+    )
+
+    const filter = tornadoPool.filters.NewCommitment()
+    let fromBlock = await ethers.provider.getBlock()
+    let events = await tornadoPool.queryFilter(filter, fromBlock.number)
+
+    const packedOutput = utils.solidityPack(
+      ['string', 'uint256', 'bytes32'],
+      ['abi', aliceDepositAmount, alicePubkey],
+    )
+    expect(events[0].args.encryptedOutput).to.be.equal(packedOutput)
+
+    const aliceDepositUtxo = new Utxo({
+      amount: aliceDepositAmount,
+      keypair: aliceKeypair,
+      blinding: 0,
+      index: 0,
+    })
+
+    // Bob gives Alice address to send some eth inside the shielded pool
+    const bobKeypair = new Keypair() // contains private and public keys
+    const bobAddress = bobKeypair.address() // contains only public key
+
+    // Alice sends some funds to Bob
+    const bobSendAmount = utils.parseEther('0.06')
+    const bobSendUtxo = new Utxo({ amount: bobSendAmount, keypair: Keypair.fromString(bobAddress) })
+    const aliceChangeUtxo = new Utxo({
+      amount: aliceDepositAmount.sub(bobSendAmount),
+      keypair: aliceDepositUtxo.keypair,
+    })
+    await transaction({ tornadoPool, inputs: [aliceDepositUtxo], outputs: [bobSendUtxo, aliceChangeUtxo] })
+
+    // Bob parses chain to detect incoming funds
+    fromBlock = await ethers.provider.getBlock()
+    events = await tornadoPool.queryFilter(filter, fromBlock.number)
+    let bobReceiveUtxo
+    try {
+      bobReceiveUtxo = Utxo.decrypt(bobKeypair, events[0].args.encryptedOutput, events[0].args.index)
+    } catch (e) {
+      // we try to decrypt another output here because it shuffles outputs before sending to blockchain
+      bobReceiveUtxo = Utxo.decrypt(bobKeypair, events[1].args.encryptedOutput, events[1].args.index)
+    }
+    expect(bobReceiveUtxo.amount).to.be.equal(bobSendAmount)
   })
 
   it('should deposit, transact and withdraw', async function () {
@@ -361,6 +424,233 @@ describe('TornadoPool', function () {
     const senderBalanceAfter = await ethers.provider.getBalance(sender.address)
     expect(senderBalanceAfter).to.be.equal(senderBalanceBefore.sub(txFee).add(l1Fee))
     expect(await ethers.provider.getBalance(recipient)).to.be.equal(aliceWithdrawAmount)
+  })
+
+  it('should withdraw with call', async function () {
+    const { tornadoPool, token } = await loadFixture(fixture)
+    const aliceKeypair = new Keypair() // contains private and public keys
+
+    // regular L1 deposit -------------------------------------------
+
+    // Alice deposits into tornado pool
+    const aliceDepositAmount = utils.parseEther('0.07')
+    let aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount })
+    await transaction({ tornadoPool, outputs: [aliceDepositUtxo] })
+
+    // withdrawal with call -----------------------------------------
+    // withdraws a part of his funds from the shielded pool
+    const aliceWithdrawAmount = utils.parseEther('0.06')
+    const recipient = (await ethers.getSigners())[1]
+    const aliceChangeUtxo = new Utxo({
+      amount: aliceDepositAmount.sub(aliceWithdrawAmount),
+      keypair: aliceKeypair,
+    })
+    const transferTx = await token.populateTransaction.transfer(recipient.address, aliceWithdrawAmount)
+    const approveTx = await token.populateTransaction.approve(recipient.address, aliceWithdrawAmount)
+
+    const withdrawalBytecode = getWithdrawalWorkerBytecode(
+      token.address,
+      [token.address, token.address],
+      [transferTx.data, approveTx.data],
+    )
+
+    await expect(() =>
+      transaction({
+        tornadoPool,
+        inputs: [aliceDepositUtxo],
+        outputs: [aliceChangeUtxo],
+        recipient: ethers.constants.AddressZero,
+        withdrawalBytecode: withdrawalBytecode,
+      }),
+    ).to.changeTokenBalances(
+      token,
+      [tornadoPool, recipient],
+      [BigNumber.from(0).sub(aliceWithdrawAmount), aliceWithdrawAmount],
+    )
+
+    const filter = token.filters.Approval()
+    const fromBlock = await ethers.provider.getBlock()
+    const events = await token.queryFilter(filter, fromBlock.number)
+    expect(events[0].args.spender).to.be.equal(recipient.address)
+    expect(events[0].args.value).to.be.equal(aliceWithdrawAmount)
+  })
+
+  it('should withdraw with call and stuck tokens', async function () {
+    const { tornadoPool, token } = await loadFixture(fixture)
+    const aliceKeypair = new Keypair() // contains private and public keys
+
+    // regular L1 deposit -------------------------------------------
+
+    // Alice deposits into tornado pool
+    const aliceDepositAmount = utils.parseEther('0.07')
+    let aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount })
+    await transaction({ tornadoPool, outputs: [aliceDepositUtxo] })
+
+    // withdrawal with call -----------------------------------------
+    // withdraws a part of his funds from the shielded pool
+    const aliceWithdrawAmount = utils.parseEther('0.06')
+    const aliceTransferAmount = utils.parseEther('0.05')
+    const recipient = (await ethers.getSigners())[1]
+    const changeReceiver = (await ethers.getSigners())[2]
+    const aliceChangeUtxo = new Utxo({
+      amount: aliceDepositAmount.sub(aliceWithdrawAmount),
+      keypair: aliceKeypair,
+    })
+    const transferTx = await token.populateTransaction.transfer(recipient.address, aliceTransferAmount)
+    const approveTx = await token.populateTransaction.approve(recipient.address, aliceTransferAmount)
+
+    // stuck tokens - revert
+    const withdrawalBytecode = getWithdrawalWorkerBytecode(
+      token.address,
+      [token.address, token.address],
+      [transferTx.data, approveTx.data],
+    )
+
+    await expect(
+      transaction({
+        tornadoPool,
+        inputs: [aliceDepositUtxo],
+        outputs: [aliceChangeUtxo],
+        recipient: ethers.constants.AddressZero,
+        withdrawalBytecode: withdrawalBytecode,
+      }),
+    ).to.be.revertedWith('Create2: Failed on deploy') // Stuck tokens on withdrawal worker
+
+    // use contract with stuck tokens check
+    const WithdrawalWorkerStuckCheck = await ethers.getContractFactory('WithdrawalWorkerStuckCheck')
+    const deployTx = await WithdrawalWorkerStuckCheck.getDeployTransaction(
+      token.address,
+      changeReceiver.address,
+      [token.address, token.address],
+      [transferTx.data, approveTx.data],
+    )
+
+    await expect(() =>
+      transaction({
+        tornadoPool,
+        inputs: [aliceDepositUtxo],
+        outputs: [aliceChangeUtxo],
+        recipient: ethers.constants.AddressZero,
+        withdrawalBytecode: deployTx.data,
+      }),
+    ).to.changeTokenBalances(
+      token,
+      [tornadoPool, recipient, changeReceiver],
+      [
+        BigNumber.from(0).sub(aliceWithdrawAmount),
+        aliceTransferAmount,
+        aliceWithdrawAmount.sub(aliceTransferAmount),
+      ],
+    )
+
+    const filter = token.filters.Approval()
+    const fromBlock = await ethers.provider.getBlock()
+    const events = await token.queryFilter(filter, fromBlock.number)
+    expect(events[0].args.spender).to.be.equal(recipient.address)
+    expect(events[0].args.value).to.be.equal(aliceTransferAmount)
+  })
+
+  it('should withdraw with public deposit', async function () {
+    const { tornadoPool, token, sender } = await loadFixture(fixture)
+    const aliceKeypair = new Keypair() // contains private and public keys
+    const alicePubkey = aliceKeypair.address().slice(0, 66)
+
+    // regular L1 deposit -----------------------------------------------------
+    // ------------------------------------------------------------------------
+
+    // Alice deposits into tornado pool
+    const aliceDepositAmount = utils.parseEther('0.07')
+    let aliceDepositUtxo = new Utxo({ amount: aliceDepositAmount })
+    await transaction({ tornadoPool, outputs: [aliceDepositUtxo] })
+
+    // withdrawal with call ---------------------------------------------------
+    // ------------------------------------------------------------------------
+
+    // withdraws a part of his funds from the shielded pool
+    const aliceWithdrawAmount = utils.parseEther('0.06')
+    const publicDepositAmount = utils.parseEther('0.04')
+    const realWithdrawAmount = utils.parseEther('0.02')
+    const recipient = (await ethers.getSigners())[1]
+    let aliceChangeUtxo = new Utxo({
+      amount: aliceDepositAmount.sub(aliceWithdrawAmount),
+      keypair: aliceKeypair,
+    })
+    const transferTx = await token.populateTransaction.transfer(recipient.address, realWithdrawAmount)
+    const approveTx = await token.populateTransaction.approve(tornadoPool.address, publicDepositAmount)
+    const publicDepoTx = await tornadoPool.populateTransaction.publicDeposit(alicePubkey, publicDepositAmount)
+
+    const withdrawalBytecode = getWithdrawalWorkerBytecode(
+      token.address,
+      [token.address, token.address, tornadoPool.address],
+      [transferTx.data, approveTx.data, publicDepoTx.data],
+    )
+
+    await expect(() =>
+      transaction({
+        tornadoPool,
+        inputs: [aliceDepositUtxo],
+        outputs: [aliceChangeUtxo],
+        recipient: ethers.constants.AddressZero,
+        withdrawalBytecode: withdrawalBytecode,
+      }),
+    ).to.changeTokenBalances(
+      token,
+      [tornadoPool, recipient],
+      [BigNumber.from(0).sub(realWithdrawAmount), realWithdrawAmount],
+    )
+
+    let filter = token.filters.Approval()
+    let fromBlock = await ethers.provider.getBlock()
+    let events = await token.queryFilter(filter, fromBlock.number)
+    expect(events[0].args.spender).to.be.equal(tornadoPool.address)
+    expect(events[0].args.value).to.be.equal(publicDepositAmount)
+
+    // check public depo and spend it -----------------------------------------
+    // ------------------------------------------------------------------------
+
+    filter = tornadoPool.filters.NewCommitment()
+    events = await tornadoPool.queryFilter(filter, fromBlock.number)
+
+    const packedOutput = utils.solidityPack(
+      ['string', 'uint256', 'bytes32'],
+      ['abi', publicDepositAmount, alicePubkey],
+    )
+    expect(events[2].args.encryptedOutput).to.be.equal(packedOutput)
+
+    aliceDepositUtxo = new Utxo({
+      amount: publicDepositAmount,
+      keypair: aliceKeypair,
+      blinding: 0,
+      index: 0,
+    })
+
+    // Bob gives Alice address to send some eth inside the shielded pool
+    const bobKeypair = new Keypair() // contains private and public keys
+    const bobAddress = bobKeypair.address() // contains only public key
+
+    // Alice sends some funds to Bob
+    const bobSendAmount = utils.parseEther('0.01')
+    const bobSendUtxo = new Utxo({ amount: bobSendAmount, keypair: Keypair.fromString(bobAddress) })
+    aliceChangeUtxo = new Utxo({
+      amount: publicDepositAmount.sub(bobSendAmount),
+      keypair: aliceDepositUtxo.keypair,
+    })
+
+    await expect(() =>
+      transaction({ tornadoPool, inputs: [aliceDepositUtxo], outputs: [bobSendUtxo, aliceChangeUtxo] }),
+    ).to.changeTokenBalances(token, [tornadoPool, sender], [0, 0])
+
+    // Bob parses chain to detect incoming funds
+    fromBlock = await ethers.provider.getBlock()
+    events = await tornadoPool.queryFilter(filter, fromBlock.number)
+    let bobReceiveUtxo
+    try {
+      bobReceiveUtxo = Utxo.decrypt(bobKeypair, events[0].args.encryptedOutput, events[0].args.index)
+    } catch (e) {
+      // we try to decrypt another output here because it shuffles outputs before sending to blockchain
+      bobReceiveUtxo = Utxo.decrypt(bobKeypair, events[1].args.encryptedOutput, events[1].args.index)
+    }
+    expect(bobReceiveUtxo.amount).to.be.equal(bobSendAmount)
   })
 
   it('should set L1FeeReceiver on L1Unwrapper contract', async function () {

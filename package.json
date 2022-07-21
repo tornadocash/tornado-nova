@@ -15,6 +15,7 @@
     "build": "npm run circuit && npm run compile",
     "deploy": "npx hardhat run scripts/deploy.js --network optimism",
     "test": "npx hardhat test",
+    "coverage": "npx hardhat coverage",
     "eslint": "eslint --ext .js --ignore-path .gitignore .",
     "prettier:check": "prettier --check . --config .prettierrc",
     "prettier:fix": "prettier --write . --config .prettierrc",
@@ -51,13 +52,14 @@
     "typechain": "^5.1.2"
   },
   "devDependencies": {
-    "@nomiclabs/hardhat-etherscan": "^2.1.8",
+    "@nomiclabs/hardhat-etherscan": "3.1.0",
     "babel-eslint": "^10.1.0",
     "eslint": "^7.28.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-prettier": "^3.4.0",
     "prettier": "^2.3.1",
     "prettier-plugin-solidity": "^1.0.0-beta.13",
-    "solhint-plugin-prettier": "^0.0.5"
+    "solhint-plugin-prettier": "^0.0.5",
+    "solidity-coverage": "^0.7.21"
   }
 }

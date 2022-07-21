@@ -5,3 +5,6 @@ cache
 artifacts
 src/types
 .vscode
+coverage
+coverage.json
+
